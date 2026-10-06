@@ -33,6 +33,7 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/dist/**',
       '**/.next/**',
+      '**/out/**',
       '**/coverage/**',
       '**/next-env.d.ts',
     ],

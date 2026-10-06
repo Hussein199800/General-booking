@@ -1,0 +1,52 @@
+name: Preview (GitHub Pages)
+
+# Publishes a static, demo-data-only preview of the web app to
+# https://hussein199800.github.io/General-booking/ so the project owner can
+# follow progress from a phone. The real system runs on the Bar's own servers.
+# Requires Settings → Pages → Source: "GitHub Actions".
+
+on:
+  push:
+    branches: [claude/new-session-25ky6n]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @sba/shared build
+      - name: Static export (preview mode, demo data only)
+        run: pnpm --filter @sba/web build
+        env:
+          SBA_PREVIEW: '1'
+          NEXT_TELEMETRY_DISABLED: '1'
+      - run: touch apps/web/out/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

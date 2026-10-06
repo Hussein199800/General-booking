@@ -18,8 +18,9 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   // The CSP nonce is generated per request (src/proxy.ts), so every page must be
   // rendered per request; a prerendered page would carry no nonce and its
-  // bootstrap scripts would be blocked.
-  await connection();
+  // bootstrap scripts would be blocked. The static GitHub Pages preview has no
+  // server (and no proxy), so it is the one build that skips this.
+  if (process.env.NEXT_PUBLIC_SBA_PREVIEW !== '1') await connection();
 
   return (
     <html lang="ar" dir="rtl">
