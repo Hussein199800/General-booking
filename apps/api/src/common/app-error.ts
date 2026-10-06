@@ -17,6 +17,7 @@ export const ERROR_CODES = {
   CONFLICT: { status: 409, message: 'errors.conflict' },
   SLOT_CONFLICT: { status: 409, message: 'errors.slotConflict' },
   ILLEGAL_TRANSITION: { status: 409, message: 'errors.illegalTransition' },
+  DAY_SUSPENDED: { status: 409, message: 'errors.daySuspended' },
   IDEMPOTENCY_IN_PROGRESS: { status: 409, message: 'errors.idempotencyInProgress' },
   IDEMPOTENCY_KEY_REQUIRED: { status: 400, message: 'errors.idempotencyKeyRequired' },
   LINK_INVALID: { status: 410, message: 'errors.linkInvalid' },

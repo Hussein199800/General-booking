@@ -91,6 +91,7 @@
     "conflict": "تعارض الطلب مع بيانات موجودة.",
     "slotConflict": "يتعارض هذا الوقت مع موعد آخر.",
     "illegalTransition": "لا يمكن تنفيذ هذا الإجراء على الطلب في حالته الحالية.",
+    "daySuspended": "عُلِّق جدول هذا اليوم بقرار طارئ، ولا يمكن الحجز فيه.",
     "idempotencyKeyRequired": "الطلب ناقص: مفتاح عدم التكرار مطلوب.",
     "idempotencyKeyReused": "استُخدم مفتاح عدم التكرار لطلب مختلف.",
     "idempotencyInProgress": "الطلب نفسه قيد المعالجة. يُرجى الانتظار.",
@@ -243,6 +244,17 @@
       "RESCHEDULED": "أُعيدت جدولته",
       "NO_SHOW": "لم يحضر",
       "TRANSFERRED": "محال إلى عضو"
+    },
+    "role": {
+      "SYSTEM_ADMIN": "مدير النظام",
+      "AUDITOR": "مدقق",
+      "GRAND_SYNDIC": "السيد نقيب المحامين",
+      "SECRETARIAT_HEAD": "رئيس أمانة السر",
+      "SECRETARIAT_OFFICER": "موظف أمانة السر",
+      "COUNCIL_MEMBER": "عضو مجلس النقابة",
+      "BRANCH_OFFICER": "موظف فرع",
+      "COMMITTEE_MEMBER": "عضو لجنة",
+      "LAWYER": "محامٍ"
     }
   },
   "secretariat": {

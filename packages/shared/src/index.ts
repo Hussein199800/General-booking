@@ -6,3 +6,5 @@ export * from './domain/scheduling.js';
 export * from './domain/workflow.js';
 export * from './i18n.js';
 export * from './api/auth.js';
+export * from './api/domain.js';
+export * from './api/dto.js';

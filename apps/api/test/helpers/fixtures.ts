@@ -178,3 +178,33 @@ export class Client {
     return res;
   }
 }
+
+/**
+ * Makes a fresh, MFA-enabled Grand Syndic. The database allows exactly one
+ * active grant, so any previous holder is revoked first.
+ */
+export async function createGrandSyndic(owner: PrismaClient): Promise<StaffFixture> {
+  await owner.userRoleGrant.updateMany({
+    where: { role: 'GRAND_SYNDIC', revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+  return createStaff(owner, ['GRAND_SYNDIC'], { mfa: true });
+}
+
+export async function createRoom(owner: PrismaClient): Promise<string> {
+  const room = await owner.room.create({
+    data: { code: unique('ROOM_').toUpperCase(), nameAr: unique('room'), capacity: 10 },
+  });
+  return room.id;
+}
+
+/**
+ * An instant on a future day in Asia/Damascus (UTC+3 all year), as ISO text.
+ * `day` counts days from today; each test uses its own days to stay independent.
+ */
+export function damascus(day: number, hour: number, minute = 0): string {
+  const now = new Date();
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + day, hour - 3, minute),
+  ).toISOString();
+}

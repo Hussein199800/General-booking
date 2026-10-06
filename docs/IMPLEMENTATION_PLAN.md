@@ -22,23 +22,23 @@ Status legend: ☐ to do · ◐ in progress · ☑ done (with evidence in TESTIN
 
 ## Batches
 
-### B0 · P0 fixes ☐
+### B0 · P0 fixes ☑
 
 - **B0.1** Gate demo screens (I-8). _Accept:_ production build, `GET /secretariat` without a session → redirect to `/login`; no demo strings in the HTML. Preview build unchanged.
 - **B0.2** Override vulnerable transitive deps. _Accept:_ `pnpm audit --prod` clean; migrate, drift, seed and DB tests still pass.
 - **B0.3** Portable API `dev` script. _Accept:_ no shell operators in `package.json` scripts.
 
-### B1 · API foundation (P1) ☐ — depends on B0
+### B1 · API foundation (P1) ☑ — depends on B0
 
 Prisma service (runtime role), secret-file config, request context (request id, IP, user agent), uniform error envelope `{ code, message(ar) }` without internals, zod validation pipe, audit writer bound to the transaction, idempotency interceptor, rate limiter.
 _Accept:_ unit tests for error mapping and validation; e2e: unknown route → 404 envelope; DB constraint violations map to stable codes (`CONFLICT_SLOT`, `ILLEGAL_TRANSITION`); repeated mutation with the same `Idempotency-Key` returns the stored response; different body → 422.
 
-### B2 · Authentication and RBAC (P1) ☐ — depends on B1
+### B2 · Authentication and RBAC (P1) ☑ — depends on B1
 
 Staff login (e-mail + password + TOTP), lawyer login (registration number + national ID + password), TOTP enrolment, refresh rotation with replay detection, logout, `GET /me`, lockout after repeated failures, roles guard, CSRF (I-3).
 _Accept (e2e):_ wrong password → generic error and counter increments; 5 failures → locked; staff without MFA cannot call protected routes; refresh rotation works and a replayed refresh token revokes the session; revoked role loses access on the next request; mutation without CSRF header → 403.
 
-### B3 · Domain API (P1) ☐ — depends on B2
+### B3 · Domain API (P1) ☑ — depends on B2
 
 - Public: `POST /public/audience-requests` (rate-limited) → `PENDING_REVIEW`, unique reference code, acknowledgement in outbox.
 - Lawyer: `POST /lawyer/grievances`, `POST /lawyer/audience-requests`, `GET /lawyer/me/tickets` (own only).
