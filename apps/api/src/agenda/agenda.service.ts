@@ -312,6 +312,8 @@ export class AgendaService {
     const actor = requireActor(ctx);
     if (!sameDamascusDay(input.startsAt, input.endsAt))
       throw new AppError('VALIDATION', {}, ['endsAt']);
+    // Audiences are booked ahead; a start in the past is a typing error, not a booking.
+    if (input.startsAt.getTime() <= Date.now()) throw new AppError('VALIDATION', {}, ['startsAt']);
     return this.prisma.client.$transaction(async (tx) => {
       const original = await tx.appointment.findUnique({
         where: { id },

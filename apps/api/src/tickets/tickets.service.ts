@@ -360,6 +360,8 @@ export class TicketsService {
     const actor = requireActor(ctx);
     if (!sameDamascusDay(input.startsAt, input.endsAt))
       throw new AppError('VALIDATION', {}, ['endsAt']);
+    // Audiences are booked ahead; a start in the past is a typing error, not a booking.
+    if (input.startsAt.getTime() <= Date.now()) throw new AppError('VALIDATION', {}, ['startsAt']);
     const principal = await this.grandSyndic();
 
     return this.prisma.client.$transaction(async (tx) => {

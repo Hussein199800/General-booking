@@ -401,7 +401,7 @@ describe('appointments', () => {
     expect(statuses).toEqual(['APPROVED', 'PENDING_REVIEW']);
   });
 
-  it('refuses an appointment that spans two days or a room that does not exist', async () => {
+  it('refuses an appointment in the past, across two days, or in an unknown room', async () => {
     const { id } = await submitPublic();
     const crossing = await approve(id, {
       startsAt: damascus(8, 23, 30),
@@ -409,6 +409,9 @@ describe('appointments', () => {
       meetingMode: 'REMOTE',
     });
     expect(crossing.status).toBe(400);
+    const past = await approve(id, inPerson(-1, 10));
+    expect(past.status).toBe(400);
+    expect(past.body.fields).toEqual(['startsAt']);
     const noRoom = await approve(id, { ...inPerson(8, 10), roomId: crypto.randomUUID() });
     expect(noRoom.status).toBe(400);
     expect(noRoom.body.fields).toEqual(['roomId']);
