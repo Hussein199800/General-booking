@@ -71,32 +71,42 @@ export default function HomePage() {
           {[
             {
               icon: ScrollText,
+              href: '/request',
               title: t('home.services.audienceRequest'),
               body: t('home.servicesDesc.audienceRequest'),
             },
             {
               icon: UserRound,
+              href: '/login',
               title: t('home.services.lawyerPortal'),
               body: t('home.servicesDesc.lawyerPortal'),
             },
           ].map((service) => (
-            <article key={service.title} className="card flex gap-4 p-5">
+            <Link
+              key={service.title}
+              href={service.href}
+              className="card flex gap-4 p-5 transition hover:shadow-md"
+            >
               <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-navy-50 text-navy-700">
                 <service.icon className="size-6" aria-hidden="true" />
               </span>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="font-bold">{service.title}</h3>
-                  <span className="badge bg-gold-50 text-gold-700">{t('nav.comingSoon')}</span>
+                  {DEMO_MODE && (
+                    <span className="badge bg-gold-50 text-gold-700">{t('preview.badge')}</span>
+                  )}
                 </div>
                 <p className="mt-1 text-sm text-ink-muted">{service.body}</p>
               </div>
-            </article>
+            </Link>
           ))}
         </div>
-        <p role="status" className="text-sm text-ink-muted">
-          {t('home.servicesPending')}
-        </p>
+        {DEMO_MODE && (
+          <p role="status" className="text-sm text-ink-muted">
+            {t('home.servicesPending')}
+          </p>
+        )}
       </section>
 
       {DEMO_MODE && (

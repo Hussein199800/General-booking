@@ -20,6 +20,8 @@ infra/secrets/*
 *.log
 .DS_Store
 coverage/
+test-results/
+playwright-report/
 
 # Editors
 .idea/

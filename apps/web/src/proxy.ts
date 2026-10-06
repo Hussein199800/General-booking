@@ -18,6 +18,9 @@ export function proxy(request: NextRequest): NextResponse {
 
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const isDev = process.env.NODE_ENV !== 'production';
+  // Behind the TLS-terminating reverse proxy the original scheme arrives in X-Forwarded-Proto.
+  const https =
+    request.nextUrl.protocol === 'https:' || request.headers.get('x-forwarded-proto') === 'https';
 
   const csp = [
     "default-src 'self'",
@@ -31,7 +34,7 @@ export function proxy(request: NextRequest): NextResponse {
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    ...(isDev ? [] : ['upgrade-insecure-requests']),
+    ...(https ? ['upgrade-insecure-requests'] : []),
   ].join('; ');
 
   const requestHeaders = new Headers(request.headers);

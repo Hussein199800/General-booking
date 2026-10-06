@@ -33,6 +33,8 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/dist/**',
       '**/.next/**',
+      '**/test-results/**',
+      '**/playwright-report/**',
       '**/out/**',
       '**/coverage/**',
       '**/next-env.d.ts',
@@ -77,7 +79,7 @@ export default tseslint.config(
   },
   {
     // End-to-end tests read untyped HTTP response bodies and assert on fixtures.
-    files: ['apps/*/test/**/*.ts'],
+    files: ['apps/*/test/**/*.ts', 'e2e/**/*.ts'],
     rules: {
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',

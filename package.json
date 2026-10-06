@@ -22,7 +22,8 @@
     "db:migrate": "pnpm --filter @sba/db migrate:deploy",
     "db:seed": "pnpm --filter @sba/crypto --filter @sba/shared --filter @sba/db build && pnpm --filter @sba/db seed",
     "build:deps": "pnpm --filter @sba/shared --filter @sba/crypto build && pnpm --filter @sba/db generate",
-    "db:test": "pnpm --filter @sba/db test:integration"
+    "db:test": "pnpm --filter @sba/db test:integration",
+    "test:browser": "pnpm --filter @sba/e2e test:browser"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

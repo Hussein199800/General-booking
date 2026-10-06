@@ -90,3 +90,46 @@ jobs:
           pnpm --filter @sba/db seed | tee second-run.log
           grep -q '"templatesCreated":0' second-run.log
           grep -q '"demoUsersCreated":0' second-run.log
+
+  browser:
+    name: Browser end-to-end (real API and web)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build API, web (server build) and packages
+        run: pnpm build:deps && pnpm build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+      - name: Install Chromium for Playwright
+        run: pnpm --filter @sba/e2e exec playwright install --with-deps chromium
+      - name: Browser tests (desktop and phone)
+        run: pnpm test:browser
+        env:
+          TEST_DATABASE_ADMIN_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          NEXT_TELEMETRY_DISABLED: '1'
+      - name: Keep the report when something fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          retention-days: 7
