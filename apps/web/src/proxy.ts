@@ -6,6 +6,16 @@ import { NextResponse, type NextRequest } from 'next/server';
  * own inline bootstrap scripts, so no 'unsafe-inline' script source is needed.
  */
 export function proxy(request: NextRequest): NextResponse {
+  // Same-origin API (decision I-2): the browser only ever talks to this origin,
+  // so session cookies are first-party and CSP keeps `connect-src 'self'`.
+  if (request.nextUrl.pathname.startsWith('/api/v1/')) {
+    const target = new URL(
+      `${request.nextUrl.pathname}${request.nextUrl.search}`,
+      process.env.API_INTERNAL_URL ?? 'http://127.0.0.1:4000',
+    );
+    return NextResponse.rewrite(target);
+  }
+
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const isDev = process.env.NODE_ENV !== 'production';
 

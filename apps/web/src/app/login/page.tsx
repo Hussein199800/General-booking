@@ -1,26 +1,21 @@
-import {
-  CalendarClock,
-  FileLock2,
-  Gavel,
-  KeyRound,
-  LayoutDashboard,
-  Lock,
-  Mail,
-  ShieldCheck,
-} from 'lucide-react';
+import { CalendarClock, FileLock2, Gavel, LayoutDashboard, Lock, ShieldCheck } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Suspense } from 'react';
 
 import { PreviewBanner } from '@/components/PreviewBanner';
 import { Seal } from '@/components/Seal';
+import { LoginForm } from '@/features/auth/LoginForm';
 import { t } from '@/i18n';
 import { DEMO_MODE } from '@/lib/runtime';
+import { Loading } from '@/lib/session';
 
 export const metadata: Metadata = { title: t('login.title') };
 
 /**
- * Staff sign-in, laid out like the reference portal (art panel + form).
- * The form is inert until Phase 2 implements authentication.
+ * Sign-in for staff and lawyers, laid out like the reference portal (art panel
+ * + form). In the static preview there is no server, so the form is inert and
+ * the demo screens are linked instead.
  */
 export default function LoginPage() {
   return (
@@ -59,53 +54,9 @@ export default function LoginPage() {
               <p className="text-ink-muted">{t('login.subtitle')}</p>
             </div>
 
-            <form className="grid gap-4">
-              <fieldset disabled className="grid gap-4">
-                <div>
-                  <label htmlFor="email" className="field-label">
-                    <Mail className="size-4" aria-hidden="true" />
-                    {t('login.email')}
-                  </label>
-                  <input
-                    id="email"
-                    type="email"
-                    dir="ltr"
-                    autoComplete="username"
-                    className="input"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="password" className="field-label">
-                    <KeyRound className="size-4" aria-hidden="true" />
-                    {t('login.password')}
-                  </label>
-                  <input
-                    id="password"
-                    type="password"
-                    autoComplete="current-password"
-                    className="input"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="otp" className="field-label">
-                    <ShieldCheck className="size-4" aria-hidden="true" />
-                    {t('login.otp')}
-                  </label>
-                  <input
-                    id="otp"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    maxLength={6}
-                    dir="ltr"
-                    className="input tracking-[0.4em]"
-                  />
-                  <p className="mt-1 text-xs text-ink-subtle">{t('login.otpHint')}</p>
-                </div>
-                <button type="submit" className="btn btn-primary w-full">
-                  {t('login.submit')}
-                </button>
-              </fieldset>
-            </form>
+            <Suspense fallback={<Loading />}>
+              <LoginForm disabled={DEMO_MODE} />
+            </Suspense>
 
             {DEMO_MODE && (
               <div id="login-preview-note" className="grid gap-3 rounded-2xl bg-navy-50 p-4">

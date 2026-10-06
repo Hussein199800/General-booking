@@ -431,7 +431,7 @@ describe('appointments', () => {
       where: { ticketId: a.id, template: { code: 'EMERGENCY_APOLOGY' } },
     });
     const url = (apology.payload as { rescheduleUrl: string }).rescheduleUrl;
-    const token = url.split('/reschedule/')[1]!;
+    const token = url.split('/reschedule#')[1]!;
     // Only the hash is stored.
     expect(await t.owner.actionToken.count({ where: { ticketId: a.id } })).toBe(1);
 

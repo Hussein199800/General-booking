@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.build.json",
     "dev": "node scripts/dev.mjs",
     "start": "node dist/main.js",
+    "admin:create": "node --env-file-if-exists=../../.env dist/cli/create-admin.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --project unit",
     "test:e2e": "vitest run --project e2e"

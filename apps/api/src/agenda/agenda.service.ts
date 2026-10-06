@@ -530,7 +530,8 @@ export class AgendaService {
             recipient: contactOf(row.ticket),
             payload: {
               dateTime: formatDateTime(row.startsAt),
-              rescheduleUrl: `${this.env.PUBLIC_BASE_URL}/reschedule/${token}`,
+              // In the fragment, so the token never reaches server or proxy logs.
+              rescheduleUrl: `${this.env.PUBLIC_BASE_URL}/reschedule#${token}`,
             },
             ticketId: row.ticket.id,
             appointmentId: row.id,
