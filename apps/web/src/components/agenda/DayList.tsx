@@ -4,38 +4,20 @@ import { Lock, MapPin, Paperclip, Video } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { PriorityBadge } from '@/components/Badges';
-import type { DemoAppointment } from '@/demo/data';
+import type { Appt } from '@/data/model';
 import { formatTime, t } from '@/i18n';
 
-import {
-  LIVE_STATE_STYLE,
-  accentOf,
-  displayName,
-  liveState,
-  locationText,
-  memberName,
-  type Viewer,
-} from './view';
+import { LIVE_STATE_STYLE, accentOf, displayName, liveState, locationText } from './view';
 
 interface DayListProps {
-  readonly appointments: readonly DemoAppointment[];
-  readonly viewer: Viewer;
+  readonly appointments: readonly Appt[];
   readonly highlightId?: string | undefined;
   readonly onOpenDocument?: (name: string) => void;
-  readonly actions?: (appointment: DemoAppointment) => ReactNode;
-  /** TRANSFERRED audiences whose new time has not been set yet (D21). */
-  readonly pendingTransferIds?: ReadonlySet<string>;
+  readonly actions?: (appointment: Appt) => ReactNode;
 }
 
 /** One day's entries in time order, with live state and optional per-entry actions. */
-export function DayList({
-  appointments,
-  viewer,
-  highlightId,
-  onOpenDocument,
-  actions,
-  pendingTransferIds,
-}: DayListProps) {
+export function DayList({ appointments, highlightId, onOpenDocument, actions }: DayListProps) {
   if (appointments.length === 0) {
     return <p className="card p-6 text-center text-ink-muted">{t('agenda.noEntries')}</p>;
   }
@@ -43,7 +25,7 @@ export function DayList({
     <ol className="grid gap-3">
       {appointments.map((item) => {
         const state = liveState(item);
-        const masked = viewer === 'SECRETARIAT' && item.origin === 'PRINCIPAL' && item.isPrivate;
+        const masked = item.masked;
         const inactive = ['POSTPONED', 'TRANSFERRED', 'CANCELLED', 'NO_SHOW'].includes(state);
         return (
           <li
@@ -76,7 +58,7 @@ export function DayList({
                     <span className="badge bg-gold-100 text-gold-700">{t('syndic.next')}</span>
                   )}
                 </div>
-                <h3 className="mt-1 text-lg font-bold leading-snug">{displayName(item, viewer)}</h3>
+                <h3 className="mt-1 text-lg font-bold leading-snug">{displayName(item)}</h3>
                 {!masked && (item.capacity || item.organization) && (
                   <p className="text-sm text-ink-muted">
                     {[item.capacity, item.organization].filter(Boolean).join(' — ')}
@@ -84,8 +66,8 @@ export function DayList({
                 )}
                 {item.status === 'TRANSFERRED' && (
                   <p className="mt-1 text-sm font-bold text-tier-internal">
-                    {t('agenda.transferredTo', { name: memberName(item.transferredTo) })}
-                    {pendingTransferIds?.has(item.id) && (
+                    {t('agenda.transferredTo', { name: item.transferredTo?.name ?? '' })}
+                    {item.pendingTransfer && (
                       <span className="ms-2 badge bg-gold-100 text-gold-700">
                         {t('agenda.awaitingTime')}
                       </span>

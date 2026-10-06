@@ -2,10 +2,11 @@
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-import { addDays, damascusInstant, damascusIsoDate, type DemoAppointment } from '@/demo/data';
+import type { Appt } from '@/data/model';
+import { addDays, damascusInstant, damascusIsoDate } from '@/lib/dates';
 import { formatNumber, formatTime, t } from '@/i18n';
 
-import { accentOf, displayName, type Viewer } from './view';
+import { accentOf, displayName } from './view';
 
 const MONTH_FORMAT = new Intl.DateTimeFormat('ar-SY', {
   month: 'long',
@@ -25,8 +26,7 @@ interface MonthCalendarProps {
   readonly selected: string;
   readonly onSelect: (isoDate: string) => void;
   readonly today: string;
-  readonly appointments: readonly DemoAppointment[];
-  readonly viewer: Viewer;
+  readonly appointments: readonly Appt[];
 }
 
 function shiftMonth(month: string, delta: number): string {
@@ -43,7 +43,6 @@ export function MonthCalendar({
   onSelect,
   today,
   appointments,
-  viewer,
 }: MonthCalendarProps) {
   const [y, m] = month.split('-').map(Number);
   const firstDow = new Date(Date.UTC(y ?? 1970, (m ?? 1) - 1, 1)).getUTCDay(); // 0 = Sunday
@@ -52,7 +51,7 @@ export function MonthCalendar({
   const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
   const trimmed = cells.slice(0, cells[35]?.slice(0, 7) === month.slice(0, 7) ? 42 : 35);
 
-  const byDay = new Map<string, DemoAppointment[]>();
+  const byDay = new Map<string, Appt[]>();
   for (const appointment of appointments) {
     if (appointment.status === 'TRANSFERRED' || appointment.status === 'CANCELLED') continue;
     const day = damascusIsoDate(appointment.startsAt);
@@ -154,7 +153,7 @@ export function MonthCalendar({
                     className="truncate rounded-md border-s-4 bg-canvas px-1.5 py-0.5 text-[0.7rem] leading-tight text-ink"
                     style={{ borderInlineStartColor: accentOf(entry) }}
                   >
-                    {formatTime(entry.startsAt)} · {displayName(entry, viewer)}
+                    {formatTime(entry.startsAt)} · {displayName(entry)}
                   </span>
                 ))}
                 {entries.length > 3 && (

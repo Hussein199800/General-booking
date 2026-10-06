@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { t } from '@/i18n';
+import { DEMO_MODE } from '@/lib/runtime';
 
 import { Seal } from './Seal';
 
@@ -138,8 +139,11 @@ export function AppShell({ sectionName, nav, userName, userRole, today, children
           ))}
         </nav>
 
-        <Link href="/" className="nav-item mt-auto text-sm text-ink-muted">
-          {t('nav.backHome')}
+        <Link
+          href={DEMO_MODE ? '/' : '/account'}
+          className="nav-item mt-auto text-sm text-ink-muted"
+        >
+          {DEMO_MODE ? t('nav.backHome') : t('account.title')}
         </Link>
       </aside>
 

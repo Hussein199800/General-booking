@@ -55,12 +55,13 @@ function commit(next: DemoState): void {
   for (const listener of listeners) listener();
 }
 
-function current(): DemoState {
+/** The current demo state (loads it on first use). */
+export function current(): DemoState {
   state ??= load();
   return state;
 }
 
-function subscribe(listener: () => void): () => void {
+export function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   const onStorage = (event: StorageEvent) => {
     if (event.key === STORAGE_KEY) {
@@ -212,6 +213,22 @@ export const demoActions = {
           name: entry.title,
         },
       ],
+    });
+    return { ok: true };
+  },
+
+  /** Cancels one of the Grand Syndic's own entries, freeing the time. */
+  cancelEntry(id: string): ActionResult {
+    const s = current();
+    const entry = s.appointments.find((x) => x.id === id);
+    if (entry?.origin !== 'PRINCIPAL' || !canTransitionAppointment(entry.status, 'CANCELLED')) {
+      return { ok: false, reason: 'ILLEGAL_TRANSITION' };
+    }
+    commit({
+      ...s,
+      appointments: s.appointments.map((x) =>
+        x.id === id ? { ...x, status: 'CANCELLED' as const } : x,
+      ),
     });
     return { ok: true };
   },

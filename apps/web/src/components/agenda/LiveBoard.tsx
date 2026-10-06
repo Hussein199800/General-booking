@@ -2,29 +2,28 @@
 
 import { Activity, DoorOpen, Hourglass, TimerReset } from 'lucide-react';
 
-import type { DemoAppointment } from '@/demo/data';
-import { demoActions } from '@/demo/store';
+import type { Appt } from '@/data/model';
+import type { TrackStep } from '@/data/workspace';
 import { formatTime, t } from '@/i18n';
 
-import { LIVE_STATE_STYLE, accentOf, displayName, liveState, type Viewer } from './view';
+import { LIVE_STATE_STYLE, accentOf, displayName, liveState } from './view';
 
 interface LiveBoardProps {
   /** Today's entries on the Grand Syndic's agenda, in time order. */
-  readonly appointments: readonly DemoAppointment[];
+  readonly appointments: readonly Appt[];
   readonly now: Date;
-  readonly viewer: Viewer;
   /** The Secretariat records arrivals and exits; the Grand Syndic only watches. */
-  readonly controls?: boolean;
+  readonly onTrack?: (id: string, step: TrackStep) => void;
 }
 
-export function nextAppointment(appointments: readonly DemoAppointment[], now: Date) {
+export function nextAppointment(appointments: readonly Appt[], now: Date) {
   return appointments.find(
     (x) => x.origin === 'SECRETARIAT' && x.status === 'SCHEDULED' && !x.startedAt && x.endsAt > now,
   );
 }
 
 /** "Who is in, who is waiting, who is next" plus today's running order. */
-export function LiveBoard({ appointments, now, viewer, controls = false }: LiveBoardProps) {
+export function LiveBoard({ appointments, now, onTrack }: LiveBoardProps) {
   const inOffice = appointments.filter((x) => liveState(x) === 'IN_OFFICE');
   const waiting = appointments.filter((x) => liveState(x) === 'WAITING');
   const next = nextAppointment(appointments, now);
@@ -34,7 +33,7 @@ export function LiveBoard({ appointments, now, viewer, controls = false }: LiveB
       icon: DoorOpen,
       title: t('live.inOffice'),
       accent: 'var(--color-tier-standard)',
-      body: inOffice[0] ? displayName(inOffice[0], viewer) : t('live.noneInOffice'),
+      body: inOffice[0] ? displayName(inOffice[0]) : t('live.noneInOffice'),
       meta: inOffice[0]?.startedAt
         ? t('live.since', { time: formatTime(inOffice[0].startedAt) })
         : '',
@@ -43,16 +42,14 @@ export function LiveBoard({ appointments, now, viewer, controls = false }: LiveB
       icon: Hourglass,
       title: t('live.waiting'),
       accent: 'var(--color-gold-500)',
-      body: waiting.length
-        ? waiting.map((x) => displayName(x, viewer)).join(' · ')
-        : t('live.noneWaiting'),
+      body: waiting.length ? waiting.map((x) => displayName(x)).join(' · ') : t('live.noneWaiting'),
       meta: '',
     },
     {
       icon: TimerReset,
       title: t('live.next'),
       accent: 'var(--color-navy-700)',
-      body: next ? displayName(next, viewer) : t('live.noNext'),
+      body: next ? displayName(next) : t('live.noNext'),
       meta: next ? t('live.at', { time: formatTime(next.startsAt) }) : '',
     },
   ];
@@ -103,16 +100,24 @@ export function LiveBoard({ appointments, now, viewer, controls = false }: LiveB
                 <span className="w-16 shrink-0 whitespace-nowrap font-bold text-navy-800">
                   {formatTime(item.startsAt)}
                 </span>
-                <span className="min-w-0 flex-1 truncate">{displayName(item, viewer)}</span>
+                <span className="min-w-0 flex-1 truncate">{displayName(item)}</span>
                 <span className={`badge ${LIVE_STATE_STYLE[state]}`}>
                   {t(`live.states.${state}`)}
                 </span>
-                {controls && item.status === 'SCHEDULED' && item.origin === 'SECRETARIAT' && (
+                {onTrack && item.status === 'SCHEDULED' && item.origin === 'SECRETARIAT' && (
                   <span className="flex gap-1">
-                    {!item.arrivedAt && <TrackButton id={item.id} step="ARRIVED" />}
-                    {!item.startedAt && <TrackButton id={item.id} step="STARTED" />}
-                    {item.startedAt && !item.endedAt && <TrackButton id={item.id} step="ENDED" />}
-                    {!item.arrivedAt && <TrackButton id={item.id} step="NO_SHOW" danger />}
+                    {!item.arrivedAt && (
+                      <TrackButton id={item.id} step="ARRIVED" onTrack={onTrack} />
+                    )}
+                    {!item.startedAt && (
+                      <TrackButton id={item.id} step="STARTED" onTrack={onTrack} />
+                    )}
+                    {item.startedAt && !item.endedAt && (
+                      <TrackButton id={item.id} step="ENDED" onTrack={onTrack} />
+                    )}
+                    {!item.arrivedAt && (
+                      <TrackButton id={item.id} step="NO_SHOW" onTrack={onTrack} danger />
+                    )}
                   </span>
                 )}
               </li>
@@ -127,10 +132,12 @@ export function LiveBoard({ appointments, now, viewer, controls = false }: LiveB
 function TrackButton({
   id,
   step,
+  onTrack,
   danger = false,
 }: {
   id: string;
-  step: 'ARRIVED' | 'STARTED' | 'ENDED' | 'NO_SHOW';
+  step: TrackStep;
+  onTrack: (id: string, step: TrackStep) => void;
   danger?: boolean;
 }) {
   return (
@@ -138,7 +145,7 @@ function TrackButton({
       type="button"
       className={`btn min-h-8 px-3 text-xs ${danger ? 'btn-danger' : 'btn-secondary'}`}
       onClick={() => {
-        demoActions.track(id, step);
+        onTrack(id, step);
       }}
     >
       {t(`live.actions.${step}`)}

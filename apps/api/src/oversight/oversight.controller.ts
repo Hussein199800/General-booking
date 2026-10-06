@@ -57,8 +57,8 @@ export class OversightController {
     return { intact: row?.broken === null, firstBrokenId: row?.broken?.toString() ?? null };
   }
 
-  /** Workload and delay figures for the Secretariat head (P3 reporting, first cut). */
-  @Roles('SECRETARIAT_HEAD', 'AUDITOR')
+  /** Workload and delay figures for the Secretariat (P3 reporting, first cut). */
+  @Roles('SECRETARIAT_HEAD', 'SECRETARIAT_OFFICER', 'AUDITOR')
   @Get('reports/summary')
   async summary() {
     const [byStatus, byPriority, overdue, timing] = await Promise.all([

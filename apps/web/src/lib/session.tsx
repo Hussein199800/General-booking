@@ -9,6 +9,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { t } from '@/i18n';
 
 import { api } from './api';
+import { DEMO_MODE } from './runtime';
 
 export type Me = Omit<MeResponse, 'roles'> & { readonly roles: readonly UserRole[] };
 
@@ -32,6 +33,11 @@ export function homeFor(me: Pick<Me, 'roles' | 'mfaVerified' | 'mfaEnabled'>): s
 }
 
 const SessionContext = createContext<Me | null>(null);
+
+/** The signed-in user, or null in the demo build (no sessions there). */
+export function useOptionalMe(): Me | null {
+  return useContext(SessionContext);
+}
 
 /** The signed-in user; only valid inside <RequireSession>. */
 export function useMe(): Me {
@@ -135,4 +141,26 @@ function FullPageMessage({ children }: { readonly children: ReactNode }) {
       <div className="card grid max-w-md gap-4 p-8 text-center">{children}</div>
     </main>
   );
+}
+
+/** Staff screens: a session with one of `roles` in real builds; open in the demo build. */
+export function StaffGate({
+  roles,
+  children,
+}: {
+  readonly roles: readonly UserRole[];
+  readonly children: ReactNode;
+}) {
+  if (DEMO_MODE) return children;
+  return <RequireSession roles={roles}>{children}</RequireSession>;
+}
+
+/** Name and role label for the shell (fixed demo labels in the demo build). */
+export function useIdentity(fallback: { name: string; role: string }) {
+  const me = useOptionalMe();
+  if (!me) return fallback;
+  return {
+    name: me.fullName,
+    role: me.roles.map((role) => t(`labels.role.${role}`)).join(t('common.listSeparator')),
+  };
 }

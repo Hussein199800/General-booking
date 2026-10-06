@@ -1,14 +1,16 @@
 import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
 
 import { AgendaBoard } from '@/features/secretariat/AgendaBoard';
 import { t } from '@/i18n';
-import { DEMO_MODE } from '@/lib/runtime';
+import { StaffGate } from '@/lib/session';
 
 export const metadata: Metadata = { title: t('secretariat.agenda.title') };
 
 export default function SecretariatAgendaPage() {
-  // Demo store only in demo builds; real builds require a session (wired in B4).
-  if (!DEMO_MODE) redirect('/login');
-  return <AgendaBoard />;
+  // Real builds: a session with one of these roles (the API checks again on every call).
+  return (
+    <StaffGate roles={['SECRETARIAT_HEAD', 'SECRETARIAT_OFFICER']}>
+      <AgendaBoard />
+    </StaffGate>
+  );
 }

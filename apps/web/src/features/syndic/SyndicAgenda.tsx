@@ -16,21 +16,29 @@ import {
   MessageSquarePlus,
   RotateCcw,
   UserRoundCheck,
+  XCircle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useState, type SubmitEvent } from 'react';
 
+import { FormError, FormFooter } from '@/components/BookingFields';
+
 import { DayList } from '@/components/agenda/DayList';
 import { LiveBoard, nextAppointment } from '@/components/agenda/LiveBoard';
 import { MonthCalendar } from '@/components/agenda/MonthCalendar';
-import { memberName } from '@/components/agenda/view';
+import { displayName } from '@/components/agenda/view';
 import { Modal } from '@/components/Modal';
 import { PreviewBanner } from '@/components/PreviewBanner';
 import { Seal } from '@/components/Seal';
 import { useNow } from '@/components/useNow';
-import { councilMembers, damascusIsoDate, type DemoAppointment } from '@/demo/data';
-import { demoActions, pendingTransfers, useDemoState } from '@/demo/store';
+import { useAgendaMonth } from '@/data/agenda';
+import type { Appt } from '@/data/model';
+import { useResource, useWorkspace } from '@/data/workspace';
+import { doneMessage, ResourceStatus } from '@/features/secretariat/SecretariatDashboard';
 import { formatDate, formatNumber, t } from '@/i18n';
+import type { ApiResult } from '@/lib/api';
+import { damascusIsoDate, fromDamascusInput } from '@/lib/dates';
+import { formText } from '@/lib/form';
 
 type Tab = 'today' | 'calendar';
 type Dialog =
@@ -38,97 +46,105 @@ type Dialog =
   | { kind: 'ask' }
   | { kind: 'emergency' }
   | { kind: 'doc'; name: string }
-  | { kind: 'transfer'; appointment: DemoAppointment };
+  | { kind: 'transfer'; appointment: Appt };
 
 const DURATIONS = [15, 30, 45, 60, 90, 120] as const;
-
-function text(form: FormData, name: string): string {
-  const value = form.get(name);
-  return typeof value === 'string' ? value.trim() : '';
-}
 
 /**
  * The Grand Syndic's executive view. Live board and today's audiences first;
  * the full calendar one tap away; every tool he needs in one row.
  */
 export function SyndicAgenda() {
-  const state = useDemoState();
+  const ws = useWorkspace({ kind: 'SYNDIC' });
   const now = useNow();
   const [tab, setTab] = useState<Tab>('today');
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [month, setMonth] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
 
-  const ready = state && now;
   const today = now ? damascusIsoDate(now) : '';
-  const mine = (state?.appointments ?? [])
-    .filter((x) => x.principal === 'SYNDIC')
-    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
-  const todays = mine.filter((x) => damascusIsoDate(x.startsAt) === today);
+  const agenda = useAgendaMonth(ws, today, 30_000);
+  const members = useResource(ws, () => ws.members(), [ws]);
+  const todays = agenda.today;
+  const ready = now !== null && agenda.items !== null;
   const scheduledToday = todays.filter((x) => x.status === 'SCHEDULED');
   const next = now ? nextAppointment(todays, now) : undefined;
-  const pendingIds = new Set(state ? pendingTransfers(state).map((x) => x.id) : []);
   const selectedDay = selected ?? today;
-  const dayEntries = mine.filter((x) => damascusIsoDate(x.startsAt) === selectedDay);
 
   function close() {
     setDialog(null);
     setError(null);
   }
 
-  function done(message: string) {
+  /** Runs an action; on success closes the dialog, says so, and reloads the agenda. */
+  async function run(action: () => Promise<ApiResult<unknown>>, message: () => string) {
+    setBusy(true);
+    setError(null);
+    const result = await action();
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.message);
+      return;
+    }
     close();
-    setNotice(`${message} ${t('preview.actionNotSaved')}`);
+    setNotice(doneMessage(ws, message()));
+    agenda.reload();
   }
 
   function submitEntry(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const startsAt = new Date(`${text(form, 'date')}T${text(form, 'time')}:00+03:00`);
-    const endsAt = new Date(startsAt.getTime() + Number(text(form, 'duration')) * 60_000);
-    const result = demoActions.addPrincipalEntry({
-      title: text(form, 'title'),
-      startsAt,
-      endsAt,
-      locationNote: text(form, 'location'),
-      isPrivate: form.get('private') === 'on',
-    });
-    if (result.ok) done(t('syndic.entryAdded'));
-    else setError(t('syndic.conflict'));
+    const startsAt = fromDamascusInput(formText(form, 'date'), formText(form, 'time'));
+    void run(
+      () =>
+        ws.addEntry({
+          title: formText(form, 'title'),
+          startsAt,
+          endsAt: new Date(startsAt.getTime() + Number(formText(form, 'duration')) * 60_000),
+          locationNote: formText(form, 'location'),
+          isPrivate: form.get('private') === 'on',
+        }),
+      () => t('syndic.entryAdded'),
+    );
   }
 
-  function submitTransfer(event: SubmitEvent<HTMLFormElement>, appointment: DemoAppointment) {
+  function submitTransfer(event: SubmitEvent<HTMLFormElement>, appointment: Appt) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const memberId = text(form, 'member');
-    const keepTime = text(form, 'when') !== 'NEW';
-    const result = demoActions.transfer(appointment.id, memberId, text(form, 'note'), keepTime);
-    if (!result.ok) {
-      setError(t('syndic.memberBusy'));
-      return;
-    }
-    const name = memberName(memberId);
-    done(keepTime ? t('syndic.transferDone', { name }) : t('syndic.transferDonePending', { name }));
+    const memberId = formText(form, 'member');
+    const keepTime = formText(form, 'when') !== 'NEW';
+    const name = members.data?.find((m) => m.id === memberId)?.name ?? '';
+    void run(
+      () => ws.transfer(appointment.id, memberId, keepTime, formText(form, 'note')),
+      () =>
+        keepTime ? t('syndic.transferDone', { name }) : t('syndic.transferDonePending', { name }),
+    );
   }
 
   function submitAsk(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    demoActions.requestFromPrincipal({
-      name: text(form, 'name'),
-      purpose: text(form, 'purpose'),
-      priority: text(form, 'priority') as PriorityTier,
-      requesterType: text(form, 'type') as RequesterType,
-    });
-    done(t('syndic.askDone'));
+    void run(
+      () =>
+        ws.askSecretariat({
+          name: formText(form, 'name'),
+          phone: formText(form, 'phone'),
+          purpose: formText(form, 'purpose'),
+          priority: formText(form, 'priority') as PriorityTier,
+          requesterType: formText(form, 'type') as RequesterType,
+        }),
+      () => t('syndic.askDone'),
+    );
   }
 
   function postpone() {
     if (!now) return;
-    demoActions.postponeRestOfDay(today, now, damascusIsoDate);
-    done(t('syndic.emergencyDone'));
+    void run(
+      () => ws.emergencyPostpone(now),
+      () => t('syndic.emergencyDone'),
+    );
   }
 
   const remaining = now
@@ -141,8 +157,27 @@ export function SyndicAgenda() {
       )
     : [];
 
-  const transferAction = (item: DemoAppointment) =>
-    item.origin === 'SECRETARIAT' && item.status === 'SCHEDULED' && !item.startedAt ? (
+  const entryActions = (item: Appt) => {
+    if (item.status !== 'SCHEDULED') return null;
+    if (item.origin === 'PRINCIPAL') {
+      return (
+        <button
+          type="button"
+          className="btn btn-secondary min-h-9 px-3 text-sm"
+          onClick={() => {
+            void run(
+              () => ws.cancelEntry(item.id),
+              () => t('syndic.entryCancelled'),
+            );
+          }}
+        >
+          <XCircle className="size-4" aria-hidden="true" />
+          {t('syndic.cancelEntry')}
+        </button>
+      );
+    }
+    if (item.startedAt) return null;
+    return (
       <button
         type="button"
         className="btn btn-secondary min-h-9 px-3 text-sm"
@@ -153,26 +188,29 @@ export function SyndicAgenda() {
         <UserRoundCheck className="size-4" aria-hidden="true" />
         {t('syndic.transfer')}
       </button>
-    ) : null;
+    );
+  };
 
   return (
     <main id="main" className="mx-auto grid max-w-6xl gap-4 p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Link href="/" className="btn btn-secondary min-h-10 px-3 text-sm">
+        <Link href={ws.demo ? '/' : '/account'} className="btn btn-secondary min-h-10 px-3 text-sm">
           <ArrowRight className="size-4" aria-hidden="true" />
-          {t('nav.home')}
+          {ws.demo ? t('nav.home') : t('account.title')}
         </Link>
-        <button
-          type="button"
-          className="btn btn-secondary min-h-10 px-3 text-sm"
-          onClick={() => {
-            demoActions.reset();
-            setNotice(null);
-          }}
-        >
-          <RotateCcw className="size-4" aria-hidden="true" />
-          {t('preview.reset')}
-        </button>
+        {ws.demo && (
+          <button
+            type="button"
+            className="btn btn-secondary min-h-10 px-3 text-sm"
+            onClick={() => {
+              ws.reset();
+              setNotice(null);
+            }}
+          >
+            <RotateCcw className="size-4" aria-hidden="true" />
+            {t('preview.reset')}
+          </button>
+        )}
       </div>
 
       <section className="hero grid gap-5 p-5 sm:p-7">
@@ -214,7 +252,7 @@ export function SyndicAgenda() {
         </div>
       </section>
 
-      <PreviewBanner />
+      {ws.demo && <PreviewBanner />}
 
       {notice && (
         <p role="status" className="rounded-2xl bg-navy-900 p-4 text-sm text-white">
@@ -249,18 +287,18 @@ export function SyndicAgenda() {
         ))}
       </div>
 
+      <ResourceStatus resource={agenda.resource} onRetry={agenda.reload} />
+
       {ready && tab === 'today' && (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start">
-          <LiveBoard appointments={todays} now={now} viewer="SYNDIC" />
+          <LiveBoard appointments={todays} now={now} />
           <DayList
             appointments={todays}
-            viewer="SYNDIC"
             highlightId={next?.id}
             onOpenDocument={(name) => {
               setDialog({ kind: 'doc', name });
             }}
-            actions={transferAction}
-            pendingTransferIds={pendingIds}
+            actions={entryActions}
           />
         </div>
       )}
@@ -268,26 +306,23 @@ export function SyndicAgenda() {
       {ready && tab === 'calendar' && (
         <div className="grid gap-5">
           <MonthCalendar
-            month={month ?? `${today.slice(0, 7)}-01`}
-            onMonthChange={setMonth}
+            month={agenda.month}
+            onMonthChange={agenda.setMonth}
             selected={selectedDay}
             onSelect={setSelected}
             today={today}
-            appointments={mine}
-            viewer="SYNDIC"
+            appointments={agenda.items ?? []}
           />
           <div className="grid gap-3">
             <h2 className="text-lg font-bold">
               {formatDate(new Date(`${selectedDay}T12:00:00+03:00`))}
             </h2>
             <DayList
-              appointments={dayEntries}
-              viewer="SYNDIC"
+              appointments={agenda.dayItems(selectedDay)}
               onOpenDocument={(name) => {
                 setDialog({ kind: 'doc', name });
               }}
-              actions={transferAction}
-              pendingTransferIds={pendingIds}
+              actions={entryActions}
             />
           </div>
         </div>
@@ -373,7 +408,7 @@ export function SyndicAgenda() {
               {t('syndic.private')}
             </label>
             <FormError message={error} />
-            <Footer onCancel={close} submit={t('secretariat.actions.confirm')} />
+            <FormFooter onCancel={close} busy={busy} submit={t('secretariat.actions.confirm')} />
           </form>
         </Modal>
       )}
@@ -386,7 +421,7 @@ export function SyndicAgenda() {
               submitTransfer(event, dialog.appointment);
             }}
           >
-            <p className="font-bold">{dialog.appointment.name}</p>
+            <p className="font-bold">{displayName(dialog.appointment)}</p>
             <p className="rounded-xl bg-navy-50 p-3 text-sm text-navy-800">
               {t('syndic.transferHint')}
             </p>
@@ -396,9 +431,9 @@ export function SyndicAgenda() {
               </label>
               <select id="member" name="member" required defaultValue="" className="input">
                 <option value="" disabled />
-                {councilMembers.map((member) => (
+                {members.data?.map((member) => (
                   <option key={member.id} value={member.id}>
-                    {member.name} — {member.capacity}
+                    {member.name}
                   </option>
                 ))}
               </select>
@@ -436,7 +471,7 @@ export function SyndicAgenda() {
               <textarea id="note" name="note" rows={2} className="input" />
             </div>
             <FormError message={error} />
-            <Footer onCancel={close} submit={t('syndic.transfer')} />
+            <FormFooter onCancel={close} busy={busy} submit={t('syndic.transfer')} />
           </form>
         </Modal>
       )}
@@ -448,7 +483,29 @@ export function SyndicAgenda() {
               <label htmlFor="name" className="field-label">
                 {t('syndic.askName')}
               </label>
-              <input id="name" name="name" required className="input" />
+              <input
+                id="name"
+                name="name"
+                required
+                minLength={2}
+                maxLength={120}
+                className="input"
+              />
+            </div>
+            <div>
+              <label htmlFor="phone" className="field-label">
+                {t('syndic.askPhone')}
+              </label>
+              <input
+                id="phone"
+                name="phone"
+                type="tel"
+                dir="ltr"
+                required
+                pattern="\+[1-9][0-9]{7,14}"
+                placeholder="+9639XXXXXXXX"
+                className="input"
+              />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
@@ -480,9 +537,18 @@ export function SyndicAgenda() {
               <label htmlFor="purpose" className="field-label">
                 {t('syndic.askPurpose')}
               </label>
-              <textarea id="purpose" name="purpose" rows={3} required className="input" />
+              <textarea
+                id="purpose"
+                name="purpose"
+                rows={3}
+                required
+                minLength={10}
+                maxLength={2000}
+                className="input"
+              />
             </div>
-            <Footer onCancel={close} submit={t('secretariat.actions.confirm')} />
+            <FormError message={error} />
+            <FormFooter onCancel={close} busy={busy} submit={t('secretariat.actions.confirm')} />
           </form>
         </Modal>
       )}
@@ -504,6 +570,7 @@ export function SyndicAgenda() {
               ? t('syndic.emergencyBody', { count: remaining.length })
               : t('syndic.emergencyNone')}
           </p>
+          <FormError message={error} />
           <div className="flex flex-wrap justify-end gap-2">
             <button type="button" className="btn btn-secondary" onClick={close}>
               {t('secretariat.actions.cancel')}
@@ -511,7 +578,7 @@ export function SyndicAgenda() {
             <button
               type="button"
               className="btn btn-danger-solid"
-              disabled={remaining.length === 0}
+              disabled={remaining.length === 0 || busy}
               onClick={postpone}
             >
               {t('syndic.emergencyConfirm')}
@@ -520,30 +587,5 @@ export function SyndicAgenda() {
         </Modal>
       )}
     </main>
-  );
-}
-
-function FormError({ message }: { message: string | null }) {
-  if (!message) return null;
-  return (
-    <p
-      role="alert"
-      className="rounded-xl bg-tier-critical-bg p-3 text-sm font-bold text-tier-critical"
-    >
-      {message}
-    </p>
-  );
-}
-
-function Footer({ onCancel, submit }: { onCancel: () => void; submit: string }) {
-  return (
-    <div className="flex flex-wrap justify-end gap-2 border-t border-line pt-4">
-      <button type="button" className="btn btn-secondary" onClick={onCancel}>
-        {t('secretariat.actions.cancel')}
-      </button>
-      <button type="submit" className="btn btn-primary">
-        {submit}
-      </button>
-    </div>
   );
 }

@@ -1,9 +1,7 @@
 import type { PriorityTier } from '@sba/shared';
 
-import { councilMembers, type DemoAppointment } from '@/demo/data';
+import type { Appt } from '@/data/model';
 import { t } from '@/i18n';
-
-export type Viewer = 'SYNDIC' | 'SECRETARIAT';
 
 export type LiveState =
   | 'OWN'
@@ -16,7 +14,7 @@ export type LiveState =
   | 'TRANSFERRED'
   | 'CANCELLED';
 
-export function liveState(appointment: DemoAppointment): LiveState {
+export function liveState(appointment: Appt): LiveState {
   if (appointment.origin === 'PRINCIPAL') return 'OWN';
   switch (appointment.status) {
     case 'COMPLETED':
@@ -49,16 +47,9 @@ export const LIVE_STATE_STYLE: Record<LiveState, string> = {
   CANCELLED: 'bg-canvas text-ink-muted',
 };
 
-/** Private principal entries are masked for the Secretariat. */
-export function displayName(appointment: DemoAppointment, viewer: Viewer): string {
-  if (appointment.origin === 'PRINCIPAL' && appointment.isPrivate && viewer === 'SECRETARIAT') {
-    return t('agenda.reserved');
-  }
-  return appointment.name;
-}
-
-export function memberName(id: string | null): string {
-  return councilMembers.find((member) => member.id === id)?.name ?? '';
+/** Private principal entries reach the Secretariat masked (the server withholds the name). */
+export function displayName(appointment: Appt): string {
+  return appointment.masked || appointment.name === null ? t('agenda.reserved') : appointment.name;
 }
 
 const ACCENT: Record<PriorityTier, string> = {
@@ -68,15 +59,13 @@ const ACCENT: Record<PriorityTier, string> = {
 };
 
 /** Left-edge colour: priority for audiences, gold for the Grand Syndic's own entries. */
-export function accentOf(appointment: DemoAppointment): string {
+export function accentOf(appointment: Appt): string {
   if (appointment.origin === 'PRINCIPAL') return 'var(--color-gold-500)';
   return appointment.priority ? ACCENT[appointment.priority] : 'var(--color-navy-700)';
 }
 
-export function locationText(appointment: DemoAppointment): string {
+export function locationText(appointment: Appt): string {
   if (appointment.locationNote) return appointment.locationNote;
   if (appointment.mode === 'REMOTE') return t('syndic.remote');
-  return appointment.room
-    ? t('syndic.inPerson', { room: t(`secretariat.rooms.${appointment.room}`) })
-    : '';
+  return appointment.room ? t('syndic.inPerson', { room: appointment.room.name }) : '';
 }

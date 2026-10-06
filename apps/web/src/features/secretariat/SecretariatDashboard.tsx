@@ -2,56 +2,74 @@
 
 import {
   canTransitionTicket,
-  GOVERNORATES,
   PRIORITY_TIERS,
-  type MeetingMode,
   type PriorityTier,
   type RequestStatus,
 } from '@sba/shared';
-import { CalendarCheck, Clock3, FileQuestion, Paperclip, Send, XCircle } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type SubmitEvent } from 'react';
+import {
+  CalendarCheck,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  FileQuestion,
+  Paperclip,
+  RefreshCw,
+  Search,
+  Send,
+  XCircle,
+} from 'lucide-react';
+import { useEffect, useRef, useState, type SubmitEvent } from 'react';
 
 import { AppShell } from '@/components/AppShell';
 import { PRIORITY_ACCENT, PRIORITY_BORDER, PriorityBadge, StatusBadge } from '@/components/Badges';
+import { BookingFields, FormError, FormFooter, readBooking } from '@/components/BookingFields';
 import { PreviewBanner } from '@/components/PreviewBanner';
-import { damascusIsoDate, type DemoTicket, type RoomCode } from '@/demo/data';
-import { demoActions, useDemoState } from '@/demo/store';
 import { useNow } from '@/components/useNow';
-import { secretariatNav } from './nav';
+import type { Option, Ticket } from '@/data/model';
+import { useResource, useWorkspace, type Resource, type Workspace } from '@/data/workspace';
 import { formatDate, formatNumber, formatRelative, t, type MessageKey } from '@/i18n';
+import type { ApiResult } from '@/lib/api';
+import { addDays, damascusIsoDate } from '@/lib/dates';
+import { formText } from '@/lib/form';
+import { useIdentity } from '@/lib/session';
+
+import { secretariatNav } from './nav';
 
 type Filter = 'ALL' | PriorityTier;
 type Step = 'detail' | 'approve' | 'delegate' | 'documents' | 'decline';
 
-interface Booking {
-  readonly startsAt: Date;
-  readonly endsAt: Date;
-  readonly mode: MeetingMode;
-  readonly room: RoomCode | null;
-}
-
-const OPEN: readonly RequestStatus[] = ['PENDING_REVIEW', 'AWAITING_DOCUMENTS'];
-const PRIORITY_RANK: Record<PriorityTier, number> = { CRITICAL: 0, INTERNAL: 1, STANDARD: 2 };
-const DURATIONS = [15, 30, 45, 60] as const;
+const PAGE_SIZE = 20;
 const STAT_LABEL = {
   CRITICAL: 'secretariat.stats.critical',
   INTERNAL: 'secretariat.stats.internal',
   STANDARD: 'secretariat.stats.standard',
 } as const satisfies Record<PriorityTier, MessageKey>;
 
-function formValue(form: FormData, name: string): string {
-  const value = form.get(name);
-  return typeof value === 'string' ? value : '';
+/** Shown after every successful action; the demo build says it was kept on this device only. */
+export function doneMessage(ws: Workspace, message: string): string {
+  return ws.demo ? `${message} ${t('preview.actionNotSaved')}` : message;
 }
 
 export function SecretariatDashboard() {
-  // Shared demo store (this browser only); null until mounted.
-  const state = useDemoState();
+  const ws = useWorkspace({ kind: 'SECRETARIAT' });
   const now = useNow();
-  const tickets = useMemo(() => state?.tickets ?? [], [state]);
+  const identity = useIdentity({ name: t('secretariat.user'), role: t('secretariat.role') });
   const [filter, setFilter] = useState<Filter>('ALL');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<Ticket | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  const priority = filter === 'ALL' ? undefined : filter;
+  const queue = useResource(ws, () => ws.queue({ priority, q, page, pageSize: PAGE_SIZE }), [
+    ws,
+    priority,
+    q,
+    page,
+  ]);
+  const counts = useResource(ws, () => ws.counts(), [ws]);
+  const rooms = useResource(ws, () => ws.rooms(), [ws]);
+  const targets = useResource(ws, () => ws.routingTargets(), [ws]);
 
   useEffect(() => {
     if (!toast) return;
@@ -63,48 +81,29 @@ export function SecretariatDashboard() {
     };
   }, [toast]);
 
-  const open = useMemo(
-    () =>
-      tickets
-        .filter((ticket) => OPEN.includes(ticket.status))
-        .sort(
-          (a, b) =>
-            PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] ||
-            a.submittedAt.getTime() - b.submittedAt.getTime(),
-        ),
-    [tickets],
-  );
-  const visible = filter === 'ALL' ? open : open.filter((ticket) => ticket.priority === filter);
-  const selected = tickets.find((ticket) => ticket.id === selectedId) ?? null;
-
-  const countBy = (priority: PriorityTier) => open.filter((x) => x.priority === priority).length;
-  const awaiting = tickets.filter((x) => x.status === 'AWAITING_DOCUMENTS').length;
-  const decided = tickets.filter((x) => !OPEN.includes(x.status)).length;
-
-  /** Returns false when the Grand Syndic's time is already taken (EXCLUDE constraint). */
-  function applyDecision(
-    id: string,
-    status: RequestStatus,
-    message: string,
-    booking?: Booking,
-  ): boolean {
-    const result = demoActions.decide(id, status, booking);
-    if (!result.ok) return false;
-    setSelectedId(null);
-    setToast(`${message} ${t('preview.actionNotSaved')}`);
-    return true;
+  function decided(message: string) {
+    setSelected(null);
+    setToast(doneMessage(ws, message));
+    queue.reload();
+    counts.reload();
   }
+
+  const open = counts.data?.open;
+  const totalOpen = open ? PRIORITY_TIERS.reduce((sum, tier) => sum + open[tier], 0) : null;
+  const pages = queue.data ? Math.max(1, Math.ceil(queue.data.total / PAGE_SIZE)) : 1;
+  const show = (value: number | null | undefined) =>
+    value === null || value === undefined ? '—' : formatNumber(value);
 
   return (
     <AppShell
       sectionName={t('secretariat.nav.dashboard')}
       nav={secretariatNav('dashboard')}
-      userName={t('secretariat.user')}
-      userRole={t('secretariat.role')}
+      userName={identity.name}
+      userRole={identity.role}
       today={now ? formatDate(now) : ''}
     >
       <div className="mx-auto grid max-w-6xl gap-5">
-        <PreviewBanner />
+        {ws.demo && <PreviewBanner />}
 
         <section className="hero grid gap-4 p-6 sm:grid-cols-[1fr_auto] sm:items-center sm:p-8">
           <div className="relative">
@@ -113,7 +112,7 @@ export function SecretariatDashboard() {
           </div>
           <div className="relative rounded-2xl bg-white/10 px-6 py-4 text-center">
             <p className="text-sm text-gold-300">{t('secretariat.pendingTotal')}</p>
-            <p className="text-4xl font-bold">{now ? formatNumber(open.length) : '—'}</p>
+            <p className="text-4xl font-bold">{show(totalOpen)}</p>
           </div>
         </section>
 
@@ -121,25 +120,27 @@ export function SecretariatDashboard() {
           className="grid grid-cols-2 gap-3 md:grid-cols-5"
           aria-label={t('secretariat.title')}
         >
-          {PRIORITY_TIERS.map((priority) => (
+          {PRIORITY_TIERS.map((tier) => (
             <div
-              key={priority}
+              key={tier}
               className="stat-card"
-              style={{ ['--stat-accent' as string]: PRIORITY_ACCENT[priority] }}
+              style={{ ['--stat-accent' as string]: PRIORITY_ACCENT[tier] }}
             >
-              <p className="text-sm text-ink-muted">{t(STAT_LABEL[priority])}</p>
-              <p className="text-3xl font-bold" style={{ color: PRIORITY_ACCENT[priority] }}>
-                {now ? formatNumber(countBy(priority)) : '—'}
+              <p className="text-sm text-ink-muted">{t(STAT_LABEL[tier])}</p>
+              <p className="text-3xl font-bold" style={{ color: PRIORITY_ACCENT[tier] }}>
+                {show(counts.data?.open[tier])}
               </p>
             </div>
           ))}
           <div className="stat-card [--stat-accent:var(--color-gold-500)]">
             <p className="text-sm text-ink-muted">{t('secretariat.stats.awaitingDocuments')}</p>
-            <p className="text-3xl font-bold text-gold-700">{now ? formatNumber(awaiting) : '—'}</p>
+            <p className="text-3xl font-bold text-gold-700">
+              {show(counts.data?.awaitingDocuments)}
+            </p>
           </div>
           <div className="stat-card col-span-2 md:col-span-1">
             <p className="text-sm text-ink-muted">{t('secretariat.stats.decided')}</p>
-            <p className="text-3xl font-bold text-navy-800">{now ? formatNumber(decided) : '—'}</p>
+            <p className="text-3xl font-bold text-navy-800">{show(counts.data?.decided)}</p>
           </div>
         </section>
 
@@ -160,6 +161,7 @@ export function SecretariatDashboard() {
                   aria-pressed={filter === value}
                   onClick={() => {
                     setFilter(value);
+                    setPage(1);
                   }}
                   className={`badge min-h-9 border px-4 text-sm ${
                     filter === value
@@ -175,20 +177,48 @@ export function SecretariatDashboard() {
             </div>
           </div>
 
-          {now && visible.length === 0 && (
+          <form
+            role="search"
+            className="flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setQ(formText(new FormData(event.currentTarget), 'q'));
+              setPage(1);
+            }}
+          >
+            <label htmlFor="queue-search" className="sr-only">
+              {t('secretariat.queue.search')}
+            </label>
+            <input
+              id="queue-search"
+              name="q"
+              type="search"
+              maxLength={100}
+              placeholder={t('secretariat.queue.searchPlaceholder')}
+              className="input flex-1"
+            />
+            <button type="submit" className="btn btn-secondary px-4">
+              <Search className="size-5" aria-hidden="true" />
+              <span className="sr-only sm:not-sr-only">{t('secretariat.queue.search')}</span>
+            </button>
+          </form>
+
+          <ResourceStatus resource={queue} onRetry={queue.reload} />
+
+          {queue.data && queue.data.items.length === 0 && (
             <p className="rounded-2xl bg-canvas p-6 text-center text-ink-muted">
-              {t('secretariat.queue.empty')}
+              {q ? t('secretariat.queue.noMatch') : t('secretariat.queue.empty')}
             </p>
           )}
 
-          <ul className="grid gap-3">
+          <ul className="grid gap-3" aria-busy={queue.state === 'loading'}>
             {now &&
-              visible.map((ticket) => (
+              queue.data?.items.map((ticket) => (
                 <li key={ticket.id}>
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedId(ticket.id);
+                      setSelected(ticket);
                     }}
                     className={`grid w-full gap-2 rounded-2xl border border-line border-s-4 bg-surface p-4 text-start transition hover:shadow-md ${PRIORITY_BORDER[ticket.priority]}`}
                   >
@@ -214,7 +244,7 @@ export function SecretariatDashboard() {
                         {ticket.organization || t(`labels.requesterType.${ticket.requesterType}`)}
                       </span>
                     </span>
-                    <span className="line-clamp-2 text-sm text-ink-muted">{ticket.purpose}</span>
+                    <span className="line-clamp-2 text-sm text-ink-muted">{ticket.summary}</span>
                     <span className="flex flex-wrap items-center gap-4 text-xs text-ink-subtle">
                       <span className="flex items-center gap-1">
                         <Clock3 className="size-3.5" aria-hidden="true" />
@@ -222,10 +252,10 @@ export function SecretariatDashboard() {
                           when: formatRelative(ticket.submittedAt, now),
                         })}
                       </span>
-                      {ticket.attachments.length > 0 && (
+                      {ticket.attachmentsCount > 0 && (
                         <span className="flex items-center gap-1">
                           <Paperclip className="size-3.5" aria-hidden="true" />
-                          {t('secretariat.queue.attachments', { count: ticket.attachments.length })}
+                          {t('secretariat.queue.attachments', { count: ticket.attachmentsCount })}
                         </span>
                       )}
                     </span>
@@ -233,17 +263,53 @@ export function SecretariatDashboard() {
                 </li>
               ))}
           </ul>
+
+          {queue.data && pages > 1 && (
+            <nav
+              className="flex items-center justify-center gap-3"
+              aria-label={t('secretariat.queue.pagination')}
+            >
+              <button
+                type="button"
+                className="btn btn-secondary min-h-10 px-3"
+                disabled={page <= 1}
+                onClick={() => {
+                  setPage((n) => n - 1);
+                }}
+                aria-label={t('secretariat.queue.previous')}
+              >
+                <ChevronRight className="size-5" aria-hidden="true" />
+              </button>
+              <span className="text-sm text-ink-muted">
+                {t('secretariat.queue.pageOf', { page, pages })}
+              </span>
+              <button
+                type="button"
+                className="btn btn-secondary min-h-10 px-3"
+                disabled={page >= pages}
+                onClick={() => {
+                  setPage((n) => n + 1);
+                }}
+                aria-label={t('secretariat.queue.next')}
+              >
+                <ChevronLeft className="size-5" aria-hidden="true" />
+              </button>
+            </nav>
+          )}
         </section>
       </div>
 
       {selected && now && (
         <TicketDialog
+          ws={ws}
           ticket={selected}
           now={now}
+          rooms={rooms.data}
+          targets={targets.data}
           onClose={() => {
-            setSelectedId(null);
+            setSelected(null);
           }}
-          onDecide={applyDecision}
+          onDone={decided}
         />
       )}
 
@@ -261,22 +327,58 @@ export function SecretariatDashboard() {
   );
 }
 
-interface TicketDialogProps {
-  readonly ticket: DemoTicket;
-  readonly now: Date;
-  readonly onClose: () => void;
-  readonly onDecide: (
-    id: string,
-    status: RequestStatus,
-    message: string,
-    booking?: Booking,
-  ) => boolean;
+/** Loading indicator, or an error with retry that never pretends stale data is fresh. */
+export function ResourceStatus({
+  resource,
+  onRetry,
+}: {
+  readonly resource: Resource<unknown>;
+  readonly onRetry: () => void;
+}) {
+  if (resource.state === 'loading' && resource.data === null) {
+    return (
+      <p role="status" className="flex items-center gap-2 p-4 text-ink-muted">
+        <span className="size-4 animate-spin rounded-full border-2 border-navy-200 border-t-navy-800" />
+        {t('common.loading')}
+      </p>
+    );
+  }
+  if (resource.state === 'error') {
+    return (
+      <div
+        role="alert"
+        className="flex flex-wrap items-center gap-3 rounded-xl bg-tier-critical-bg p-3 text-sm text-tier-critical"
+      >
+        <span className="flex-1 font-bold">
+          {resource.message}
+          {resource.data !== null && ` ${t('common.staleData')}`}
+        </span>
+        <button type="button" className="btn btn-secondary min-h-9 px-3 text-sm" onClick={onRetry}>
+          <RefreshCw className="size-4" aria-hidden="true" />
+          {t('common.retry')}
+        </button>
+      </div>
+    );
+  }
+  return null;
 }
 
-function TicketDialog({ ticket, now, onClose, onDecide }: TicketDialogProps) {
+interface TicketDialogProps {
+  readonly ws: Workspace;
+  readonly ticket: Ticket;
+  readonly now: Date;
+  readonly rooms: readonly Option[] | null;
+  readonly targets: { units: Option[]; entities: Option[] } | null;
+  readonly onClose: () => void;
+  readonly onDone: (message: string) => void;
+}
+
+function TicketDialog({ ws, ticket, now, rooms, targets, onClose, onDone }: TicketDialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const [step, setStep] = useState<Step>('detail');
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const detail = useResource(ws, () => ws.ticket(ticket.id), [ws, ticket.id]);
 
   useEffect(() => {
     const dialog = ref.current;
@@ -285,33 +387,50 @@ function TicketDialog({ ticket, now, onClose, onDecide }: TicketDialogProps) {
 
   const can = (to: RequestStatus) => canTransitionTicket(ticket.kind, ticket.status, to);
 
-  function submitApprove(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const date = formValue(form, 'date');
-    const time = formValue(form, 'time');
-    const minutes = Number(form.get('duration'));
-    const startsAt = new Date(`${date}T${time}:00+03:00`);
-    const mode: MeetingMode = formValue(form, 'mode') === 'REMOTE' ? 'REMOTE' : 'IN_PERSON';
-    const booking: Booking = {
-      startsAt,
-      endsAt: new Date(startsAt.getTime() + minutes * 60_000),
-      mode,
-      room: mode === 'IN_PERSON' ? (formValue(form, 'room') as RoomCode) : null,
-    };
-    // The store rejects overlaps exactly as the database EXCLUDE constraint does.
-    if (!onDecide(ticket.id, 'APPROVED', t('secretariat.approve.success'), booking)) {
-      setError(t('secretariat.approve.conflict'));
-    }
+  async function run(action: () => Promise<ApiResult<unknown>>, message: string) {
+    setBusy(true);
+    setError(null);
+    const result = await action();
+    setBusy(false);
+    if (result.ok) onDone(message);
+    else setError(result.message);
   }
 
-  function submitSimple(
-    event: SubmitEvent<HTMLFormElement>,
-    status: RequestStatus,
-    message: string,
-  ) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    onDecide(ticket.id, status, message);
+    const form = new FormData(event.currentTarget);
+    switch (step) {
+      case 'approve':
+        void run(() => ws.approve(ticket.id, readBooking(form)), t('secretariat.approve.success'));
+        break;
+      case 'delegate': {
+        const [kind, code] = formText(form, 'target').split(':');
+        void run(
+          () =>
+            ws.delegate(
+              ticket.id,
+              {
+                targetType: kind === 'ENTITY' ? 'EXTERNAL_ENTITY' : 'ORGANIZATIONAL_UNIT',
+                targetCode: code ?? '',
+              },
+              formText(form, 'instructions'),
+            ),
+          t('secretariat.delegate.success'),
+        );
+        break;
+      }
+      case 'documents':
+        void run(
+          () => ws.requestDocuments(ticket.id, formText(form, 'docs'), formText(form, 'due')),
+          t('secretariat.documents.success'),
+        );
+        break;
+      case 'decline':
+        void run(() => ws.decline(ticket.id), t('secretariat.decline.success'));
+        break;
+      case 'detail':
+        break;
+    }
   }
 
   const actions = [
@@ -341,23 +460,11 @@ function TicketDialog({ ticket, now, onClose, onDecide }: TicketDialogProps) {
     },
   ].filter((action) => action !== false);
 
-  const footer = (submitLabel: string, danger = false) => (
-    <div className="flex flex-wrap justify-end gap-2 border-t border-line pt-4">
-      <button
-        type="button"
-        className="btn btn-secondary"
-        onClick={() => {
-          setError(null);
-          setStep('detail');
-        }}
-      >
-        {t('secretariat.actions.cancel')}
-      </button>
-      <button type="submit" className={`btn ${danger ? 'btn-danger-solid' : 'btn-primary'}`}>
-        {submitLabel}
-      </button>
-    </div>
-  );
+  const back = () => {
+    setError(null);
+    setStep('detail');
+  };
+  const info = detail.data;
 
   return (
     <dialog ref={ref} className="dialog" onClose={onClose} aria-labelledby="ticket-title">
@@ -392,7 +499,9 @@ function TicketDialog({ ticket, now, onClose, onDecide }: TicketDialogProps) {
                 label={t('secretariat.detail.kind')}
                 value={t(`labels.ticketKind.${ticket.kind}`)}
               />
-              <Field label={t('secretariat.detail.capacity')} value={ticket.capacity} />
+              {ticket.capacity && (
+                <Field label={t('secretariat.detail.capacity')} value={ticket.capacity} />
+              )}
               {ticket.organization && (
                 <Field label={t('secretariat.detail.organization')} value={ticket.organization} />
               )}
@@ -400,19 +509,36 @@ function TicketDialog({ ticket, now, onClose, onDecide }: TicketDialogProps) {
                 label={t('secretariat.detail.requester')}
                 value={t(`labels.requesterType.${ticket.requesterType}`)}
               />
-              {ticket.preferredMode && (
+              {ticket.preferredMeetingMode && (
                 <Field
                   label={t('secretariat.detail.preferredMode')}
-                  value={t(`meetingMode.${ticket.preferredMode}`)}
+                  value={t(`meetingMode.${ticket.preferredMeetingMode}`)}
                 />
               )}
               <Field
                 label={t('secretariat.detail.submittedAt')}
                 value={formatRelative(ticket.submittedAt, now)}
               />
+              {info?.contactPhone && (
+                <Field label={t('secretariat.detail.phone')} value={info.contactPhone} ltr />
+              )}
+              {info?.contactEmail && (
+                <Field label={t('secretariat.detail.email')} value={info.contactEmail} ltr />
+              )}
+              {info?.grievance?.respondentRegistrationNumber && (
+                <Field
+                  label={t('secretariat.detail.respondent')}
+                  value={info.grievance.respondentRegistrationNumber}
+                />
+              )}
+              {info?.grievance?.courtName && (
+                <Field label={t('secretariat.detail.court')} value={info.grievance.courtName} />
+              )}
               <div className="sm:col-span-2">
                 <dt className="text-ink-subtle">{t('secretariat.detail.purpose')}</dt>
-                <dd className="mt-1 rounded-xl bg-canvas p-3 leading-relaxed">{ticket.purpose}</dd>
+                <dd className="mt-1 rounded-xl bg-canvas p-3 leading-relaxed whitespace-pre-line">
+                  {info?.description ?? ticket.summary}
+                </dd>
               </div>
               <div className="sm:col-span-2">
                 <dt className="text-ink-subtle">{t('secretariat.detail.attachments')}</dt>
@@ -428,6 +554,7 @@ function TicketDialog({ ticket, now, onClose, onDecide }: TicketDialogProps) {
                 </dd>
               </div>
             </dl>
+            <ResourceStatus resource={detail} onRetry={detail.reload} />
 
             <div className="grid gap-2 border-t border-line pt-4">
               <p className="text-sm font-bold">{t('secretariat.detail.actions')}</p>
@@ -454,150 +581,114 @@ function TicketDialog({ ticket, now, onClose, onDecide }: TicketDialogProps) {
           </>
         )}
 
-        {step === 'approve' && (
-          <form className="grid gap-4" onSubmit={submitApprove}>
-            <h3 className="text-lg font-bold">{t('secretariat.approve.title')}</h3>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div>
-                <label htmlFor="date" className="field-label">
-                  {t('secretariat.approve.date')}
-                </label>
-                <input
-                  id="date"
-                  name="date"
-                  type="date"
-                  required
-                  defaultValue={damascusIsoDate(now)}
-                  className="input"
+        {step !== 'detail' && (
+          <form className="grid gap-4" onSubmit={submit}>
+            {step === 'approve' && (
+              <>
+                <h3 className="text-lg font-bold">{t('secretariat.approve.title')}</h3>
+                <BookingFields
+                  idPrefix="ap"
+                  defaultDate={damascusIsoDate(now)}
+                  preferred={ticket.preferredMeetingMode}
+                  rooms={rooms}
                 />
-              </div>
-              <div>
-                <label htmlFor="time" className="field-label">
-                  {t('secretariat.approve.time')}
-                </label>
-                <input
-                  id="time"
-                  name="time"
-                  type="time"
-                  required
-                  defaultValue="10:00"
-                  step={900}
-                  className="input"
-                />
-              </div>
-              <div>
-                <label htmlFor="duration" className="field-label">
-                  {t('secretariat.approve.duration')}
-                </label>
-                <select id="duration" name="duration" defaultValue={30} className="input">
-                  {DURATIONS.map((minutes) => (
-                    <option key={minutes} value={minutes}>
-                      {t('secretariat.approve.minutes', { count: minutes })}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <ModeAndRoom preferred={ticket.preferredMode} />
-            {error && (
-              <p
-                role="alert"
-                className="rounded-xl bg-tier-critical-bg p-3 text-sm font-bold text-tier-critical"
-              >
-                {error}
-              </p>
+              </>
             )}
-            {footer(t('secretariat.actions.confirm'))}
-          </form>
-        )}
 
-        {step === 'delegate' && (
-          <form
-            className="grid gap-4"
-            onSubmit={(event) => {
-              submitSimple(event, 'DELEGATED', t('secretariat.delegate.success'));
-            }}
-          >
-            <h3 className="text-lg font-bold">{t('secretariat.delegate.title')}</h3>
-            <div>
-              <label htmlFor="target" className="field-label">
-                {t('secretariat.delegate.target')}
-              </label>
-              <select id="target" name="target" required className="input" defaultValue="">
-                <option value="" disabled />
-                <optgroup label={t('secretariat.targetGroups.central')}>
-                  <option value="CENTRAL_DISCIPLINARY_COMMITTEE">
-                    {t('orgUnits.CENTRAL_DISCIPLINARY_COMMITTEE')}
-                  </option>
-                </optgroup>
-                <optgroup label={t('secretariat.targetGroups.branches')}>
-                  {GOVERNORATES.map((governorate) => (
-                    <option key={governorate} value={`BRANCH_${governorate}`}>
-                      {t('branch.councilName', { governorate: t(`governorates.${governorate}`) })}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label={t('secretariat.targetGroups.external')}>
-                  <option value="MINISTRY_OF_JUSTICE">{t('entities.MINISTRY_OF_JUSTICE')}</option>
-                  <option value="SUPREME_JUDICIAL_COUNCIL">
-                    {t('entities.SUPREME_JUDICIAL_COUNCIL')}
-                  </option>
-                </optgroup>
-              </select>
-            </div>
-            <div>
-              <label htmlFor="instructions" className="field-label">
-                {t('secretariat.delegate.instructions')}
-              </label>
-              <textarea id="instructions" name="instructions" rows={3} className="input" />
-            </div>
-            {footer(t('secretariat.actions.confirm'))}
-          </form>
-        )}
+            {step === 'delegate' && (
+              <>
+                <h3 className="text-lg font-bold">{t('secretariat.delegate.title')}</h3>
+                <div>
+                  <label htmlFor="target" className="field-label">
+                    {t('secretariat.delegate.target')}
+                  </label>
+                  <select id="target" name="target" required className="input" defaultValue="">
+                    <option value="" disabled />
+                    <optgroup label={t('secretariat.targetGroups.internal')}>
+                      {targets?.units.map((unit) => (
+                        <option key={unit.code} value={`UNIT:${unit.code}`}>
+                          {unit.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label={t('secretariat.targetGroups.external')}>
+                      {targets?.entities.map((entity) => (
+                        <option key={entity.code} value={`ENTITY:${entity.code}`}>
+                          {entity.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="instructions" className="field-label">
+                    {t('secretariat.delegate.instructions')}
+                  </label>
+                  <textarea
+                    id="instructions"
+                    name="instructions"
+                    rows={3}
+                    maxLength={1000}
+                    className="input"
+                  />
+                </div>
+              </>
+            )}
 
-        {step === 'documents' && (
-          <form
-            className="grid gap-4"
-            onSubmit={(event) => {
-              submitSimple(event, 'AWAITING_DOCUMENTS', t('secretariat.documents.success'));
-            }}
-          >
-            <h3 className="text-lg font-bold">{t('secretariat.documents.title')}</h3>
-            <div>
-              <label htmlFor="docs" className="field-label">
-                {t('secretariat.documents.message')}
-              </label>
-              <textarea id="docs" name="docs" rows={3} required className="input" />
-            </div>
-            <div>
-              <label htmlFor="due" className="field-label">
-                {t('secretariat.documents.due')}
-              </label>
-              <input
-                id="due"
-                name="due"
-                type="date"
-                required
-                defaultValue={damascusIsoDate(new Date(now.getTime() + 7 * 86_400_000))}
-                className="input"
-              />
-            </div>
-            {footer(t('secretariat.actions.confirm'))}
-          </form>
-        )}
+            {step === 'documents' && (
+              <>
+                <h3 className="text-lg font-bold">{t('secretariat.documents.title')}</h3>
+                <div>
+                  <label htmlFor="docs" className="field-label">
+                    {t('secretariat.documents.message')}
+                  </label>
+                  <textarea
+                    id="docs"
+                    name="docs"
+                    rows={3}
+                    required
+                    minLength={5}
+                    maxLength={1000}
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="due" className="field-label">
+                    {t('secretariat.documents.due')}
+                  </label>
+                  <input
+                    id="due"
+                    name="due"
+                    type="date"
+                    required
+                    min={addDays(damascusIsoDate(now), 1)}
+                    defaultValue={addDays(damascusIsoDate(now), 7)}
+                    className="input"
+                  />
+                </div>
+              </>
+            )}
 
-        {step === 'decline' && (
-          <form
-            className="grid gap-4"
-            onSubmit={(event) => {
-              submitSimple(event, 'DECLINED', t('secretariat.decline.success'));
-            }}
-          >
-            <h3 className="text-lg font-bold">{t('secretariat.decline.title')}</h3>
-            <p className="rounded-xl bg-tier-critical-bg p-3 text-sm text-tier-critical">
-              {t('secretariat.decline.warning')}
-            </p>
-            {footer(t('secretariat.actions.decline'), true)}
+            {step === 'decline' && (
+              <>
+                <h3 className="text-lg font-bold">{t('secretariat.decline.title')}</h3>
+                <p className="rounded-xl bg-tier-critical-bg p-3 text-sm text-tier-critical">
+                  {t('secretariat.decline.warning')}
+                </p>
+              </>
+            )}
+
+            <FormError message={error} />
+            <FormFooter
+              onCancel={back}
+              busy={busy}
+              danger={step === 'decline'}
+              submit={
+                step === 'decline'
+                  ? t('secretariat.actions.decline')
+                  : t('secretariat.actions.confirm')
+              }
+            />
           </form>
         )}
       </div>
@@ -605,59 +696,13 @@ function TicketDialog({ ticket, now, onClose, onDecide }: TicketDialogProps) {
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function Field({ label, value, ltr = false }: { label: string; value: string; ltr?: boolean }) {
   return (
     <div>
       <dt className="text-ink-subtle">{label}</dt>
-      <dd className="font-bold">{value}</dd>
+      <dd className="font-bold" dir={ltr ? 'ltr' : undefined}>
+        {value}
+      </dd>
     </div>
-  );
-}
-
-function ModeAndRoom({ preferred }: { preferred: MeetingMode | null }) {
-  const [mode, setMode] = useState<MeetingMode>(preferred ?? 'IN_PERSON');
-  const rooms: RoomCode[] = ['MAIN', 'COUNCIL'];
-  return (
-    <fieldset className="grid gap-3">
-      <legend className="field-label">{t('secretariat.approve.mode')}</legend>
-      <div className="grid grid-cols-2 gap-2">
-        {(['IN_PERSON', 'REMOTE'] as const).map((value) => (
-          <label
-            key={value}
-            className={`btn border ${mode === value ? 'border-navy-800 bg-navy-50 text-navy-800' : 'border-line bg-surface text-ink-muted'}`}
-          >
-            <input
-              type="radio"
-              name="mode"
-              value={value}
-              checked={mode === value}
-              onChange={() => {
-                setMode(value);
-              }}
-              className="sr-only"
-            />
-            {t(`meetingMode.${value}`)}
-          </label>
-        ))}
-      </div>
-      {mode === 'IN_PERSON' ? (
-        <div>
-          <label htmlFor="room" className="field-label">
-            {t('secretariat.approve.room')}
-          </label>
-          <select id="room" name="room" className="input">
-            {rooms.map((room) => (
-              <option key={room} value={room}>
-                {t(`secretariat.rooms.${room}`)}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : (
-        <p className="rounded-xl bg-navy-50 p-3 text-sm text-navy-800">
-          {t('secretariat.approve.remoteNote')}
-        </p>
-      )}
-    </fieldset>
   );
 }
