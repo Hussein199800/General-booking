@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { PreviewBanner } from '@/components/PreviewBanner';
 import { Seal } from '@/components/Seal';
 import { t } from '@/i18n';
+import { DEMO_MODE } from '@/lib/runtime';
 
 export const metadata: Metadata = { title: t('login.title') };
 
@@ -25,7 +26,7 @@ export default function LoginPage() {
   return (
     <main id="main" className="grid min-h-dvh place-items-center p-4 sm:p-8">
       <div className="grid w-full max-w-5xl gap-4">
-        <PreviewBanner />
+        {DEMO_MODE && <PreviewBanner />}
         <div className="card grid overflow-hidden p-0 md:grid-cols-2">
           <section className="hero flex flex-col justify-center gap-5 rounded-none p-8 shadow-none sm:p-10">
             <Seal id="login" className="relative size-24 text-gold-300" />
@@ -58,7 +59,7 @@ export default function LoginPage() {
               <p className="text-ink-muted">{t('login.subtitle')}</p>
             </div>
 
-            <form className="grid gap-4" aria-describedby="login-preview-note">
+            <form className="grid gap-4">
               <fieldset disabled className="grid gap-4">
                 <div>
                   <label htmlFor="email" className="field-label">
@@ -106,19 +107,21 @@ export default function LoginPage() {
               </fieldset>
             </form>
 
-            <div id="login-preview-note" className="grid gap-3 rounded-2xl bg-navy-50 p-4">
-              <p className="text-sm text-ink-muted">{t('login.previewNotice')}</p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Link href="/secretariat" className="btn btn-secondary">
-                  <LayoutDashboard className="size-5" aria-hidden="true" />
-                  {t('login.enterSecretariat')}
-                </Link>
-                <Link href="/syndic" className="btn btn-secondary">
-                  <CalendarClock className="size-5" aria-hidden="true" />
-                  {t('login.enterSyndic')}
-                </Link>
+            {DEMO_MODE && (
+              <div id="login-preview-note" className="grid gap-3 rounded-2xl bg-navy-50 p-4">
+                <p className="text-sm text-ink-muted">{t('login.previewNotice')}</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Link href="/secretariat" className="btn btn-secondary">
+                    <LayoutDashboard className="size-5" aria-hidden="true" />
+                    {t('login.enterSecretariat')}
+                  </Link>
+                  <Link href="/syndic" className="btn btn-secondary">
+                    <CalendarClock className="size-5" aria-hidden="true" />
+                    {t('login.enterSyndic')}
+                  </Link>
+                </div>
               </div>
-            </div>
+            )}
           </section>
         </div>
       </div>

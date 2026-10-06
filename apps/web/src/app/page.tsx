@@ -14,6 +14,7 @@ import Link from 'next/link';
 
 import { Seal } from '@/components/Seal';
 import { t } from '@/i18n';
+import { DEMO_MODE } from '@/lib/runtime';
 
 const previews = [
   {
@@ -98,36 +99,38 @@ export default function HomePage() {
         </p>
       </section>
 
-      <section aria-labelledby="preview-heading" className="card grid gap-4 p-5 sm:p-6">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 id="preview-heading" className="text-xl font-bold">
-              {t('home.previewHeading')}
-            </h2>
-            <span className="badge bg-gold-50 text-gold-700">{t('preview.badge')}</span>
+      {DEMO_MODE && (
+        <section aria-labelledby="preview-heading" className="card grid gap-4 p-5 sm:p-6">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 id="preview-heading" className="text-xl font-bold">
+                {t('home.previewHeading')}
+              </h2>
+              <span className="badge bg-gold-50 text-gold-700">{t('preview.badge')}</span>
+            </div>
+            <p className="mt-1 text-sm text-ink-muted">{t('home.previewIntro')}</p>
           </div>
-          <p className="mt-1 text-sm text-ink-muted">{t('home.previewIntro')}</p>
-        </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          {previews.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="group flex items-start gap-3 rounded-2xl border border-line p-4 transition hover:border-navy-600 hover:bg-navy-50"
-            >
-              <item.icon className="mt-0.5 size-6 shrink-0 text-navy-700" aria-hidden="true" />
-              <span className="min-w-0 flex-1">
-                <span className="block font-bold">{item.title}</span>
-                <span className="block text-sm text-ink-muted">{item.description}</span>
-              </span>
-              <ArrowLeft
-                className="mt-1 size-5 shrink-0 text-ink-subtle transition group-hover:-translate-x-1"
-                aria-hidden="true"
-              />
-            </Link>
-          ))}
-        </div>
-      </section>
+          <div className="grid gap-3 md:grid-cols-2">
+            {previews.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="group flex items-start gap-3 rounded-2xl border border-line p-4 transition hover:border-navy-600 hover:bg-navy-50"
+              >
+                <item.icon className="mt-0.5 size-6 shrink-0 text-navy-700" aria-hidden="true" />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-bold">{item.title}</span>
+                  <span className="block text-sm text-ink-muted">{item.description}</span>
+                </span>
+                <ArrowLeft
+                  className="mt-1 size-5 shrink-0 text-ink-subtle transition group-hover:-translate-x-1"
+                  aria-hidden="true"
+                />
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section aria-labelledby="trust-heading" className="grid gap-3">
         <h2 id="trust-heading" className="text-xl font-bold">

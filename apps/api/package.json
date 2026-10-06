@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "dev": "tsc -p tsconfig.build.json && (tsc -p tsconfig.build.json --watch --preserveWatchOutput & node --env-file-if-exists=.env --watch dist/main.js)",
+    "dev": "node scripts/dev.mjs",
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"

@@ -44,7 +44,14 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: ['*.mjs', '*.js', 'apps/*/*.mjs', 'apps/*/*.ts', 'scripts/*.mjs'],
+          allowDefaultProject: [
+            '*.mjs',
+            '*.js',
+            'apps/*/*.mjs',
+            'apps/*/*.ts',
+            'apps/*/scripts/*.mjs',
+            'scripts/*.mjs',
+          ],
         },
         tsconfigRootDir: import.meta.dirname,
       },
@@ -57,7 +64,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['*.mjs', '*.js', 'scripts/*.mjs'],
+    files: ['*.mjs', '*.js', 'scripts/*.mjs', 'apps/*/scripts/*.mjs'],
     ...tseslint.configs.disableTypeChecked,
   },
   {

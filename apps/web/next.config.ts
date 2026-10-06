@@ -7,6 +7,7 @@ import type { NextConfig } from 'next';
  * server-rendered deployment.
  */
 const isPreview = process.env.SBA_PREVIEW === '1';
+const isDemo = process.env.SBA_DEMO === '1';
 
 const securityHeaders = [
   {
@@ -30,6 +31,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   env: {
     NEXT_PUBLIC_SBA_PREVIEW: isPreview ? '1' : '0',
+    NEXT_PUBLIC_SBA_DEMO: isDemo ? '1' : '0',
   },
   ...(isPreview
     ? {

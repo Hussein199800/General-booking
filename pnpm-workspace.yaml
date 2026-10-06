@@ -10,3 +10,9 @@ onlyBuiltDependencies:
   - prisma
   - sharp
   - unrs-resolver
+
+# Security overrides for transitive dependencies of the Prisma CLI
+# (see docs/AUDIT_REPORT.md P0-2). Re-check after each Prisma upgrade.
+overrides:
+  deepmerge-ts: '>=8.0.0'
+  mysql2: '>=3.23.1'
