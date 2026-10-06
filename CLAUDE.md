@@ -19,6 +19,11 @@ documents encrypted.
   ask; record open questions in the relevant doc.
 - No placeholder logic presented as complete. If something is stubbed, say so in code
   and in the phase summary.
+- **Communicate with the project owner in Arabic.** The owner does not read English:
+  every chat reply, question, phase summary and decision request is written in
+  Arabic. Owner-facing documents live in `docs/ar/` (Arabic); code, comments,
+  commits and technical docs stay in English as per the language rules below.
+  Each phase ends with an Arabic summary in `docs/ar/PHASE-<n>.md`.
 
 ## Hard rules (non-negotiable)
 
@@ -82,14 +87,21 @@ apps/
     src/proxy.ts       per-request CSP nonce (Next 16 "proxy", formerly middleware)
     src/i18n/          re-exports t() — the only way components get text
 packages/
-  shared/              Domain constants, i18n, shared types. Built to dist/ (ESM).
-    locales/ar.json    THE single source of user-facing Arabic text
+  shared/              Domain constants, state machines, i18n, shared types. Built to dist/ (ESM).
+    locales/ar.json    THE single source of user-facing Arabic text (incl. notification templates)
+  crypto/              AES-256-GCM seal/open, KeyRing (rotation), Pepper (HMAC). Server-only.
+  db/                  Database package
+    prisma/migrations/ SQL migrations — the source of truth for the schema
+    prisma/schema.prisma  Client model, mirrors the SQL (CI fails on drift)
+    src/seed/          Idempotent, transactional seed
+    tests/             unit/, integration/ and constraints.checks.sql
 docs/
   ARCHITECTURE.md      Tiers, trust boundaries, request data flow, roadmap
-  DATABASE.md          Schema design and rationale (Phase 1)
-  database/            Executable schema draft + constraint checks
+  DATABASE.md          Schema design, decisions D1–D17, implementation notes
+  ar/                  Owner-facing documents in Arabic (decisions, phase summaries)
+scripts/               generate-dev-secrets.mjs
 infra/
-  postgres/init/       Extensions created on first DB start (btree_gist, citext)
+  postgres/init/       First-start scripts: extensions, sba_app runtime role
   minio/               Bucket + least-privilege service account bootstrap
   secrets/             Git-ignored key material (see README there)
 ```
@@ -99,16 +111,19 @@ infra/
 ```sh
 pnpm install
 cp .env.example .env            # then replace every CHANGE_ME
+pnpm secrets:dev                # dev key material in infra/secrets/ (never overwrites)
 pnpm infra:up                   # Postgres, Redis, MinIO, Mailpit (add --profile jitsi for Jitsi)
+pnpm db:migrate && pnpm db:seed
 pnpm dev                        # shared (watch) + api :4000 + web :3000
 pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm format:check
 ```
 
-Schema draft checks (needs a scratch PostgreSQL 16 database):
+Database checks (need a migrated database with no demo data yet):
 
 ```sh
-psql -v ON_ERROR_STOP=1 -d <scratch_db> \
-  -f docs/database/schema-draft.sql -f docs/database/schema-draft.checks.sql
+psql -v ON_ERROR_STOP=1 -f packages/db/tests/constraints.checks.sql   # rolled back afterwards
+pnpm db:test                                                          # integration tests
+pnpm --filter @sba/db drift                                           # Prisma schema == migrations
 ```
 
 ## Conventions
@@ -122,3 +137,9 @@ psql -v ON_ERROR_STOP=1 -d <scratch_db> \
   leak stack traces or internal identifiers.
 - **Commits:** English, imperative mood, scoped (`api: add queue endpoint`).
 - **Secrets:** only via `*_FILE` env vars pointing into a secret mount; `.env` is git-ignored.
+- **Schema changes:** new SQL migration first, then update `schema.prisma` until
+  `drift` is empty. New tables holding legal records must `REVOKE DELETE` from `sba_app`.
+- **Prisma partial uniques:** fields marked `PARTIAL UNIQUE` in `schema.prisma` must
+  never be used in `findUnique`/`upsert`/`connect`; use `findFirst` with the predicate.
+- **Connections:** the API uses `DATABASE_URL` (`sba_app`, DML only); migrations and
+  the seed use `DATABASE_MIGRATION_URL` (owner).

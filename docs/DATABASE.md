@@ -1,13 +1,20 @@
-# Database design — Phase 1
+# Database design
 
-> **Status: DRAFT FOR REVIEW.** Nothing in this document is a migration yet.
-> After approval it becomes a Prisma schema, migrations (raw SQL where Prisma
-> cannot express a constraint) and a seed script.
+> **Status: implemented (Phase 1).** The design below was approved on 2026-10-06
+> together with the provisional answers to the open questions (§7; Arabic
+> version in [`ar/DECISIONS.md`](ar/DECISIONS.md)).
 >
-> The design is executable: [`database/schema-draft.sql`](database/schema-draft.sql)
-> creates the full schema, and [`database/schema-draft.checks.sql`](database/schema-draft.checks.sql)
-> runs **41 checks** that try to break it (double bookings, illegal transitions,
-> audit tampering …). All 41 pass on PostgreSQL 16; CI runs them on every push.
+> | Artefact                                     | Location                                                                                  |
+> | -------------------------------------------- | ----------------------------------------------------------------------------------------- |
+> | Migrations (source of truth)                 | [`packages/db/prisma/migrations/`](../packages/db/prisma/migrations)                      |
+> | Prisma schema (client only, mirrors the SQL) | [`packages/db/prisma/schema.prisma`](../packages/db/prisma/schema.prisma)                 |
+> | Seed                                         | [`packages/db/src/seed/`](../packages/db/src/seed)                                        |
+> | 41 SQL constraint checks                     | [`packages/db/tests/constraints.checks.sql`](../packages/db/tests/constraints.checks.sql) |
+> | Unit + integration tests                     | [`packages/db/tests/`](../packages/db/tests)                                              |
+>
+> CI applies the migrations to an empty PostgreSQL 16, fails on any drift between
+> the SQL and the Prisma schema, runs the constraint checks and the integration
+> tests, and seeds twice to prove the seed is idempotent.
 
 ## 1. Overview
 
@@ -64,7 +71,7 @@ added, each for a stated reason:
 | Enum                      | Values                                                                                                                                                                                                                                                                                             | Notes                                                                                               |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `user_role`               | `SYSTEM_ADMIN`, `AUDITOR`, `GRAND_SYNDIC`, `SECRETARIAT_HEAD`, `SECRETARIAT_OFFICER`, `BRANCH_OFFICER`, `COMMITTEE_MEMBER`, `LAWYER`                                                                                                                                                               | MFA mandatory for all except `LAWYER` (optional OTP). `SYSTEM_ADMIN` has no access to case content. |
-| `request_status`          | `PENDING_REVIEW`, `AWAITING_DOCUMENTS`, `DELEGATED`, `APPROVED`, `DECLINED`, `WITHDRAWN`, `CLOSED`                                                                                                                                                                                                 | `DECLINED` pending **Q1**.                                                                          |
+| `request_status`          | `PENDING_REVIEW`, `AWAITING_DOCUMENTS`, `DELEGATED`, `APPROVED`, `DECLINED`, `WITHDRAWN`, `CLOSED`                                                                                                                                                                                                 | `DECLINED` per decision **Q1** (no reason sent).                                                    |
 | `appointment_status`      | `SCHEDULED`, `COMPLETED`, `CANCELLED`, `POSTPONED`, `RESCHEDULED`, `NO_SHOW`                                                                                                                                                                                                                       | Only `SCHEDULED` occupies time.                                                                     |
 | `priority_tier`           | `CRITICAL` (red), `INTERNAL` (blue), `STANDARD` (green)                                                                                                                                                                                                                                            |                                                                                                     |
 | `requester_type`          | `CITIZEN`, `LAWYER`, `STATE_INSTITUTION`, `JUDICIAL_AUTHORITY`, `MEDIA`, `DELEGATION`                                                                                                                                                                                                              | Drives the default priority (D15).                                                                  |
@@ -72,7 +79,7 @@ added, each for a stated reason:
 | `routing_target_type`     | `ORGANIZATIONAL_UNIT`, `EXTERNAL_ENTITY`                                                                                                                                                                                                                                                           |                                                                                                     |
 | `notification_channel`    | `SMS`, `EMAIL`, `IN_APP`                                                                                                                                                                                                                                                                           |                                                                                                     |
 | `notification_status`     | `QUEUED`, `SENDING`, `SENT`, `DELIVERED`, `FAILED`, `CANCELLED`                                                                                                                                                                                                                                    |                                                                                                     |
-| `document_classification` | `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED`                                                                                                                                                                                                                                                           | Pending **Q6**.                                                                                     |
+| `document_classification` | `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED`                                                                                                                                                                                                                                                           | Per decision **Q6**.                                                                                |
 | Supporting                | `user_status`, `lawyer_practice_status`, `governorate` (14), `org_unit_type`, `external_entity_type`, `ticket_kind`, `submission_channel`, `attendee_role`, `grievance_type`, `routing_status`, `document_request_status`, `scan_status`, `action_token_purpose`, `emergency_action`, `job_status` |                                                                                                     |
 
 PostgreSQL enums are used (rather than lookup tables) because every value here
@@ -271,38 +278,95 @@ Prisma, so raw SQL fixes stay correct).
 | Key rotation sweep  | `documents (kek_id)`                                                                              |
 | Audit lookups       | `audit_logs (entity_type, entity_id, id)`, `(actor_user_id, occurred_at)`                         |
 
-## 6. How this maps to Prisma (Phase 1 implementation plan)
+## 6. Implementation notes
 
-Prisma models every table and enum. These parts go into hand-written SQL in the
-migrations (`prisma migrate dev --create-only`, then edited), because Prisma's
-schema language cannot express them:
+### SQL first, Prisma second
+
+The migrations are hand-written SQL because Prisma's schema language cannot express:
 
 - `CREATE EXTENSION btree_gist, citext`
-- All `EXCLUDE` constraints, partial / `NULLS NOT DISTINCT` unique indexes, `CHECK` constraints
+- `EXCLUDE` constraints, `CHECK` constraints, `NULLS NOT DISTINCT` uniques
 - The generated `slot` columns (declared `Unsupported("tstzrange")` in Prisma, never written)
 - Composite `(id, kind)` subtype foreign keys
 - All triggers and functions (lifecycle, attendee slot sync, audit chain, `updated_at`)
 - Transition-table contents (structural data, so they live in migrations, not the seed)
 - Role creation and `GRANT` / `REVOKE`
 
-A CI job will apply the migrations to an empty database and run the checks
-script against the result, so the Prisma schema and the constraints cannot drift.
+`schema.prisma` was produced by introspecting the migrated database and then
+renamed to the project's conventions (PascalCase models, camelCase fields with
+`@map`). CI runs `prisma migrate diff --from-config-datasource --to-schema … --exit-code`
+after migrating, so the two cannot drift.
 
-**Seed (development and first install):** user roles; the 14 governorate branch
-councils; the central Secretariat, Grand Syndic office and Disciplinary Committee
-(further committees per **Q10**); the Ministry of Justice and Supreme Judicial
-Council as external entities; Arabic notification templates (acknowledgement,
-approval in person / remote, delegation notice, document request, document
-reminder, emergency apology with reschedule link); demo users for each role
-(development only, flagged so they can never be seeded into production).
+**To change the schema:** add a new SQL migration under `prisma/migrations/`,
+apply it locally, then edit `schema.prisma` until `pnpm --filter @sba/db drift`
+reports no difference. A new table that holds legal records must also
+`REVOKE DELETE … FROM sba_app` (default privileges grant DML automatically).
 
-## 7. Open questions — need your decision
+Two schema adjustments were needed for Prisma and are documented in the SQL:
 
-These are institutional or legal choices; the draft makes a provisional choice
-for each so it can be validated, but none of them should be settled by the
-engineering team.
+- `audience_requests` and `grievances` carry a `UNIQUE (ticket_id, ticket_kind)`
+  that is redundant with their primary key; Prisma needs it to model the 1:1
+  subtype relation over the composite foreign key.
+- The back-relations from tickets to appointments, routing assignments and
+  document requests, and from sessions to refresh tokens, are declared
+  one-to-many even though introspection inferred one-to-one (see next point).
 
-| #   | Question                                                                                                                                                                                               | Provisional choice in the draft                                                                                       |
+### Partial unique indexes — a Prisma pitfall
+
+Prisma's `partialIndexes` feature treats a partial unique index such as
+`UNIQUE (ticket_id) WHERE status = 'SCHEDULED'` as if the column were unique
+everywhere, and offers it in `findUnique`, `upsert` and `connect`. Those calls
+would also match historical rows. Every such field is marked
+`PARTIAL UNIQUE` in `schema.prisma` (the note appears in the generated types).
+**Rule:** query them with `findFirst` plus the index predicate. Affected:
+`Appointment.ticketId`, `DocumentRequest.ticketId`, `RoutingAssignment.ticketId`,
+`RefreshToken.sessionId`, `UserRoleGrant.role`, `OrganizationalUnit.governorate`,
+and the compound uniques on `NotificationTemplate` and `UserRoleGrant`.
+
+### Roles and connections
+
+| Connection               | Role                          | Used by                            |
+| ------------------------ | ----------------------------- | ---------------------------------- |
+| `DATABASE_MIGRATION_URL` | schema owner                  | `prisma migrate deploy`, the seed  |
+| `DATABASE_URL`           | `sba_app` (DML only, see D16) | the API and workers (from Phase 2) |
+
+In Docker, `infra/postgres/init/02-roles.sh` creates `sba_app` with
+`POSTGRES_APP_PASSWORD`; the `runtime_role` migration grants its privileges.
+Elsewhere the migration creates it `NOLOGIN` and operations must set a password.
+
+### Seed
+
+`pnpm db:seed` (idempotent, one transaction, writes a `system.seed` audit entry):
+
+- The Grand Syndic office, the Central Secretariat, the central Disciplinary
+  Committee (decision Q10), and the 14 branch councils named «مجلس فرع …» (Q15).
+- The Ministry of Justice and the Supreme Judicial Council as external entities
+  with `CRITICAL` default priority.
+- 16 Arabic notification templates (8 codes × SMS / e-mail), copied from
+  `locales/ar.json`. Changed wording becomes a new version; the old one is retired.
+- Only when `SEED_DEMO_DATA=true` (refused in production): one demo user per staff
+  role, two demo lawyers (practising and trainee) with HMAC + encrypted national
+  IDs, and one demo room. Demo addresses use the reserved `.invalid` domain.
+
+Reference rows are created when missing and never overwritten, because staff may
+have edited them since.
+
+### Commands
+
+```sh
+pnpm secrets:dev     # create dev key material in infra/secrets/ (never overwrites)
+pnpm db:migrate      # apply migrations (DATABASE_MIGRATION_URL)
+pnpm db:seed         # build and run the seed
+pnpm db:test         # integration tests against a migrated, empty database
+psql -v ON_ERROR_STOP=1 -f packages/db/tests/constraints.checks.sql   # rolled back afterwards
+```
+
+## 7. Decisions (approved 2026-10-06)
+
+The project owner approved the provisional answers below. They are institutional
+choices and can be revisited; each is referenced where it shapes the schema.
+
+| #   | Question                                                                                                                                                                                               | Adopted decision                                                                                                      |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
 | Q1  | May the Secretariat **decline** a request (a fourth action besides approve / delegate / request documents)? If so, is a reason communicated to the requester?                                          | `DECLINED` status exists; no reason is sent.                                                                          |
 | Q2  | After **delegation** to a branch or committee, does the unit close the matter itself, or report back to the Secretariat? May it return the matter?                                                     | Unit can close it (`CLOSED`) or return it (`PENDING_REVIEW`).                                                         |

@@ -4,7 +4,7 @@ import ar from '../locales/ar.json' with { type: 'json' };
 import { ADMINISTRATIVE_ENTITIES } from './domain/administrative-entities.js';
 import { GOVERNORATES } from './domain/governorates.js';
 import { MEETING_MODES, PRIORITY_TIERS } from './domain/scheduling.js';
-import { formatDateTime, t, type MessageKey } from './i18n.js';
+import { formatDateTime, rawMessage, t, type MessageKey } from './i18n.js';
 
 describe('t', () => {
   it('resolves nested keys', () => {
@@ -17,7 +17,11 @@ describe('t', () => {
   });
 
   it('throws on a missing placeholder parameter', () => {
-    expect(() => t('branch.councilName')).toThrow(/governorate/);
+    expect(() => t('branch.councilName')).toThrow(/Missing parameter "governorate"/);
+  });
+
+  it('returns raw templates with placeholders intact', () => {
+    expect(rawMessage('branch.councilName')).toBe(ar.branch.councilName);
   });
 
   it('throws on an unknown key', () => {

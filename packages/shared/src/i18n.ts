@@ -37,13 +37,34 @@ function lookup(key: string): string {
  * (e.g. email bodies) must escape the result.
  */
 export function t(key: MessageKey, params: MessageParams = {}): string {
-  return lookup(key).replace(PLACEHOLDER, (_match, name: string) => {
+  return interpolate(lookup(key), params, key);
+}
+
+/**
+ * The stored template text with its `{{placeholders}}` intact — for copying
+ * templates elsewhere (e.g. notification_templates), not for display.
+ */
+export function rawMessage(key: MessageKey): string {
+  return lookup(key);
+}
+
+/**
+ * Fills `{{name}}` placeholders in any template (also used for stored
+ * notification templates). Throws on a missing parameter.
+ */
+export function interpolate(template: string, params: MessageParams, context = 'template'): string {
+  return template.replace(PLACEHOLDER, (_match, name: string) => {
     const value = params[name];
     if (value === undefined) {
-      throw new Error(`Missing parameter "${name}" for translation key: ${key}`);
+      throw new Error(`Missing parameter "${name}" for ${context}`);
     }
     return String(value);
   });
+}
+
+/** Names of the `{{placeholders}}` a template uses, in order of first appearance. */
+export function placeholdersOf(template: string): string[] {
+  return [...new Set(Array.from(template.matchAll(PLACEHOLDER), (match) => match[1] ?? ''))];
 }
 
 const dateTimeFormatter = new Intl.DateTimeFormat(DISPLAY_LOCALE, {

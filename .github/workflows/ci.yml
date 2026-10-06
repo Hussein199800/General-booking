@@ -32,8 +32,8 @@ jobs:
         env:
           NEXT_TELEMETRY_DISABLED: '1'
 
-  schema:
-    name: Database schema checks
+  database:
+    name: Migrations, drift, constraints, seed
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -52,10 +52,37 @@ jobs:
       PGUSER: postgres
       PGPASSWORD: postgres
       PGDATABASE: sba_ci
+      DATABASE_MIGRATION_URL: postgresql://postgres:postgres@localhost:5432/sba_ci
     steps:
       - uses: actions/checkout@v4
-      - name: Apply schema draft and run constraint checks
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build workspace dependencies
+        run: pnpm build:deps && pnpm --filter @sba/db build
+      - name: Apply migrations to an empty database
+        run: pnpm db:migrate
+      - name: Prisma schema matches the migrations (no drift)
+        run: pnpm --filter @sba/db drift
+      - name: Constraint checks (rolled back afterwards)
+        run: psql -v ON_ERROR_STOP=1 -q -f packages/db/tests/constraints.checks.sql
+      - name: Integration tests (state machines, privileges, seed)
+        run: pnpm db:test
+      - name: CLI seed with demo data is idempotent
+        env:
+          SEED_DEMO_DATA: 'true'
+          SEED_DEMO_PASSWORD: ci-demo-password-not-secret
+          MASTER_KEYS_FILE: ./infra/secrets/master-keys.json
+          MASTER_KEY_ACTIVE_ID: kek-dev-01
+          PII_HMAC_PEPPER_FILE: ./infra/secrets/pii-hmac-pepper
         run: |
-          psql -v ON_ERROR_STOP=1 -q \
-            -f docs/database/schema-draft.sql \
-            -f docs/database/schema-draft.checks.sql
+          pnpm secrets:dev
+          psql -qc 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
+          pnpm db:migrate
+          pnpm --filter @sba/db seed
+          pnpm --filter @sba/db seed | tee second-run.log
+          grep -q '"templatesCreated":0' second-run.log
+          grep -q '"demoUsersCreated":0' second-run.log

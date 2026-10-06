@@ -1,0 +1,24 @@
+{
+  "name": "@sba/crypto",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Cryptographic primitives: AES-256-GCM, envelope encryption, key ring, keyed hashing (server-side only)",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.0"
+  }
+}

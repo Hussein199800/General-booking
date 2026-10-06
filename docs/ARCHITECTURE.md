@@ -249,6 +249,10 @@ disabled unless explicitly configured. Interfaces are finalised in Phase 3.
 
 ## 8. Open questions (architecture)
 
+Q-A1 and Q-A4 follow the recommendations below unless the owner objects; Q-A2 and
+Q-A3 need answers from the Bar. All four are also listed, in Arabic, in
+[`ar/DECISIONS.md`](ar/DECISIONS.md).
+
 - **Q-A1 — Network placement of staff UIs.** Recommendation: the Secretariat and
   Syndic interfaces are reachable only from the Bar's internal network or VPN, never
   from the public Internet. Is that operationally acceptable (e.g. for the Grand

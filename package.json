@@ -10,14 +10,19 @@
   },
   "scripts": {
     "build": "pnpm -r run build",
-    "dev": "pnpm --filter @sba/shared build && pnpm -r --parallel run dev",
-    "typecheck": "pnpm --filter @sba/shared build && pnpm -r run typecheck",
-    "lint": "pnpm --filter @sba/shared build && eslint .",
-    "test": "pnpm -r run test",
+    "dev": "pnpm build:deps && pnpm -r --parallel run dev",
+    "typecheck": "pnpm build:deps && pnpm -r run typecheck",
+    "lint": "pnpm build:deps && eslint .",
+    "test": "pnpm build:deps && pnpm -r run test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "infra:up": "docker compose up -d",
-    "infra:down": "docker compose down"
+    "infra:down": "docker compose down",
+    "secrets:dev": "node scripts/generate-dev-secrets.mjs",
+    "db:migrate": "pnpm --filter @sba/db migrate:deploy",
+    "db:seed": "pnpm --filter @sba/crypto --filter @sba/shared --filter @sba/db build && pnpm --filter @sba/db seed",
+    "build:deps": "pnpm --filter @sba/shared --filter @sba/crypto build && pnpm --filter @sba/db generate",
+    "db:test": "pnpm --filter @sba/db test:integration"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

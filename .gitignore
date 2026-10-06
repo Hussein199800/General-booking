@@ -6,6 +6,7 @@ dist/
 .next/
 out/
 *.tsbuildinfo
+**/src/generated/
 next-env.d.ts
 
 # Environment & secrets — never commit real values

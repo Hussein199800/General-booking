@@ -1,0 +1,40 @@
+{
+  "name": "@sba/db",
+  "version": "0.0.0",
+  "private": true,
+  "description": "PostgreSQL schema (Prisma + raw SQL migrations), seed and database client",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "generate": "prisma generate",
+    "build": "prisma generate && tsc -p tsconfig.build.json",
+    "typecheck": "prisma generate && tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:status": "prisma migrate status",
+    "seed": "node --env-file-if-exists=../../.env dist/seed/main.js",
+    "drift": "prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "@sba/crypto": "workspace:*",
+    "@sba/shared": "workspace:*",
+    "argon2": "^0.45.1",
+    "pg": "^8.16.0",
+    "zod": "^4.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "@types/pg": "^8.15.0",
+    "prisma": "7.10.0",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.0"
+  }
+}

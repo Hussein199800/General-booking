@@ -1,0 +1,889 @@
+// =============================================================================
+// Prisma schema — mirrors prisma/migrations exactly (CI fails on any drift:
+// `prisma migrate diff --from-config-datasource --to-schema ... --exit-code`).
+//
+// The SQL migrations are the source of truth. Constraints Prisma cannot express
+// (EXCLUDE, CHECK, generated columns, triggers, grants) live only there.
+// To change the schema: write a new SQL migration, then update this file until
+// the diff is empty. Rationale for every table: docs/DATABASE.md.
+//
+// Partial uniques: Prisma treats a partial unique index (e.g. "one SCHEDULED
+// appointment per ticket") as if the column were unique everywhere, and offers
+// it in findUnique/upsert/connect. That would match historical rows too. Such
+// fields are marked PARTIAL UNIQUE below — always query them with findFirst and
+// the index predicate.
+// =============================================================================
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  previewFeatures     = ["partialIndexes"]
+  runtime             = "nodejs"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Table `action_tokens`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model ActionToken {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purpose           ActionTokenPurpose
+  tokenHash         Bytes              @unique @map("token_hash")
+  ticketId          String             @map("ticket_id") @db.Uuid
+  appointmentId     String?            @map("appointment_id") @db.Uuid
+  documentRequestId String?            @map("document_request_id") @db.Uuid
+  expiresAt         DateTime           @map("expires_at") @db.Timestamptz(6)
+  consumedAt        DateTime?          @map("consumed_at") @db.Timestamptz(6)
+  consumedIp        String?            @map("consumed_ip") @db.Inet
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  appointment       Appointment?       @relation(fields: [appointmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  documentRequest   DocumentRequest?   @relation(fields: [documentRequestId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ticket            Ticket             @relation(fields: [ticketId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([ticketId], map: "action_tokens_ticket_idx")
+  @@map("action_tokens")
+}
+
+/// Table `agenda_days`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model AgendaDay {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  principalUserId    String              @map("principal_user_id") @db.Uuid
+  agendaDate         DateTime            @map("agenda_date") @db.Date
+  isSuspended        Boolean             @default(false) @map("is_suspended")
+  notes              String?
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
+  principalUser      User                @relation(fields: [principalUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  appointments       Appointment[]
+  emergencyOverrides EmergencyOverride[]
+
+  @@unique([principalUserId, agendaDate], map: "agenda_days_one_per_principal_date")
+  @@map("agenda_days")
+}
+
+/// Table `appointment_attendees`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model AppointmentAttendee {
+  id               String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  appointmentId    String                   @map("appointment_id") @db.Uuid
+  userId           String?                  @map("user_id") @db.Uuid
+  attendeeRole     AttendeeRole             @map("attendee_role")
+  fullName         String                   @map("full_name")
+  officialCapacity String?                  @map("official_capacity")
+  phoneE164        String?                  @map("phone_e164")
+  email            String?                  @db.Citext
+  slot             Unsupported("tstzrange") @default(dbgenerated("'empty'::tstzrange"))
+  blocksTime       Boolean                  @default(false) @map("blocks_time")
+  createdAt        DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)
+  appointment      Appointment              @relation(fields: [appointmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user             User?                    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([appointmentId, userId], map: "appointment_attendees_unique_user")
+  @@map("appointment_attendees")
+}
+
+/// Table `appointment_status_transitions`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model AppointmentStatusTransition {
+  fromStatus AppointmentStatus @map("from_status")
+  toStatus   AppointmentStatus @map("to_status")
+
+  @@id([fromStatus, toStatus])
+  @@map("appointment_status_transitions")
+}
+
+/// Table `appointments`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model Appointment {
+  id                  String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// PARTIAL UNIQUE: unique only among rows matching the index predicate.
+  /// Never use it in findUnique / upsert / connect — query with findFirst + the predicate.
+  ticketId            String                    @unique(map: "appointments_one_live_per_ticket", where: raw("(status = 'SCHEDULED'::appointment_status)")) @map("ticket_id") @db.Uuid
+  ticketKind          TicketKind                @default(AUDIENCE_REQUEST) @map("ticket_kind")
+  agendaDayId         String                    @map("agenda_day_id") @db.Uuid
+  principalUserId     String                    @map("principal_user_id") @db.Uuid
+  status              AppointmentStatus         @default(SCHEDULED)
+  startsAt            DateTime                  @map("starts_at") @db.Timestamptz(6)
+  endsAt              DateTime                  @map("ends_at") @db.Timestamptz(6)
+  slot                Unsupported("tstzrange")? @default(dbgenerated("tstzrange(starts_at, ends_at, '[)'::text)"))
+  meetingMode         MeetingMode               @map("meeting_mode")
+  roomId              String?                   @map("room_id") @db.Uuid
+  meetingProvider     String?                   @map("meeting_provider")
+  meetingUrl          String?                   @map("meeting_url")
+  meetingExternalId   String?                   @map("meeting_external_id")
+  scheduledByUserId   String                    @map("scheduled_by_user_id") @db.Uuid
+  rescheduledFromId   String?                   @map("rescheduled_from_id") @db.Uuid
+  emergencyOverrideId String?                   @map("emergency_override_id") @db.Uuid
+  cancellationReason  String?                   @map("cancellation_reason")
+  version             Int                       @default(1)
+  createdAt           DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime                  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  actionTokens        ActionToken[]
+  attendees           AppointmentAttendee[]
+  agendaDay           AgendaDay                 @relation(fields: [agendaDayId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  emergencyOverride   EmergencyOverride?        @relation(fields: [emergencyOverrideId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  principalUser       User                      @relation("AppointmentsPrincipalUserId", fields: [principalUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rescheduledFrom     Appointment?              @relation("AppointmentReschedule", fields: [rescheduledFromId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rescheduledTo       Appointment[]             @relation("AppointmentReschedule")
+  room                Room?                     @relation(fields: [roomId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  scheduledByUser     User                      @relation("AppointmentsScheduledByUserId", fields: [scheduledByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ticket              Ticket                    @relation(fields: [ticketId, ticketKind], references: [id, kind], onDelete: NoAction, onUpdate: NoAction)
+  notifications       Notification[]
+
+  @@index([agendaDayId, startsAt], map: "appointments_agenda_idx")
+  @@index([ticketId], map: "appointments_ticket_idx")
+  @@map("appointments")
+}
+
+/// Table `audience_requests`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model AudienceRequest {
+  ticketId             String          @id @map("ticket_id") @db.Uuid
+  ticketKind           TicketKind      @default(AUDIENCE_REQUEST) @map("ticket_kind")
+  requesterType        RequesterType   @map("requester_type")
+  requesterFullName    String          @map("requester_full_name")
+  officialCapacity     String          @map("official_capacity")
+  organizationName     String?         @map("organization_name")
+  externalEntityId     String?         @map("external_entity_id") @db.Uuid
+  contactPhoneE164     String          @map("contact_phone_e164")
+  contactEmail         String?         @map("contact_email") @db.Citext
+  purpose              String
+  preferredMeetingMode MeetingMode?    @map("preferred_meeting_mode")
+  expectedAttendees    Int             @default(1) @map("expected_attendees") @db.SmallInt
+  createdAt            DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
+  externalEntity       ExternalEntity? @relation(fields: [externalEntityId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ticket               Ticket          @relation(fields: [ticketId, ticketKind], references: [id, kind], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([ticketId, ticketKind], map: "audience_requests_ticket_kind_unique")
+  @@index([externalEntityId], map: "audience_requests_entity_idx")
+  @@map("audience_requests")
+}
+
+/// Table `audit_chain_head`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model AuditChainHead {
+  singleton Boolean @id @default(true)
+  lastId    BigInt? @map("last_id")
+  lastHash  Bytes   @map("last_hash")
+
+  @@map("audit_chain_head")
+}
+
+/// Table `audit_logs`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model AuditLog {
+  id             BigInt     @id @default(autoincrement())
+  occurredAt     DateTime   @default(dbgenerated("clock_timestamp()")) @map("occurred_at") @db.Timestamptz(6)
+  actorUserId    String?    @map("actor_user_id") @db.Uuid
+  actorRoles     UserRole[] @default([]) @map("actor_roles")
+  actorIp        String?    @map("actor_ip") @db.Inet
+  actorUserAgent String?    @map("actor_user_agent")
+  sessionId      String?    @map("session_id") @db.Uuid
+  requestId      String?    @map("request_id")
+  action         String
+  entityType     String     @map("entity_type")
+  entityId       String     @map("entity_id")
+  beforeState    Json?      @map("before_state")
+  afterState     Json?      @map("after_state")
+  metadata       Json       @default("{}")
+  prevHash       Bytes      @default("") @map("prev_hash")
+  rowHash        Bytes      @default("") @map("row_hash")
+  actorUser      User?      @relation(fields: [actorUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([actorUserId, occurredAt], map: "audit_logs_actor_idx")
+  @@index([entityType, entityId, id], map: "audit_logs_entity_idx")
+  @@map("audit_logs")
+}
+
+/// Table `document_access_tokens`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model DocumentAccessToken {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId     String    @map("document_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  sessionId      String    @map("session_id") @db.Uuid
+  tokenHash      Bytes     @unique @map("token_hash")
+  issuedIp       String?   @map("issued_ip") @db.Inet
+  issuedAt       DateTime  @default(now()) @map("issued_at") @db.Timestamptz(6)
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  accessCount    Int       @default(0) @map("access_count")
+  lastAccessedAt DateTime? @map("last_accessed_at") @db.Timestamptz(6)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(6)
+  document       Document  @relation(fields: [documentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  session        Session   @relation(fields: [sessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user           User      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([documentId], map: "document_access_tokens_document_idx")
+  @@index([expiresAt], map: "document_access_tokens_expiry_idx")
+  @@map("document_access_tokens")
+}
+
+/// Table `document_requests`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model DocumentRequest {
+  id                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// PARTIAL UNIQUE: unique only among rows matching the index predicate.
+  /// Never use it in findUnique / upsert / connect — query with findFirst + the predicate.
+  ticketId          String                @unique(map: "document_requests_one_open_per_ticket", where: raw("(status = 'OPEN'::document_request_status)")) @map("ticket_id") @db.Uuid
+  requestedByUserId String                @map("requested_by_user_id") @db.Uuid
+  message           String
+  status            DocumentRequestStatus @default(OPEN)
+  dueAt             DateTime              @map("due_at") @db.Timestamptz(6)
+  remindersSent     Int                   @default(0) @map("reminders_sent") @db.SmallInt
+  fulfilledAt       DateTime?             @map("fulfilled_at") @db.Timestamptz(6)
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime              @default(now()) @map("updated_at") @db.Timestamptz(6)
+  actionTokens      ActionToken[]
+  requestedByUser   User                  @relation(fields: [requestedByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ticket            Ticket                @relation(fields: [ticketId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  documents         Document[]
+
+  @@index([dueAt], map: "document_requests_due_idx", where: raw("(status = 'OPEN'::document_request_status)"))
+  @@map("document_requests")
+}
+
+/// Table `documents`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model Document {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticketId             String                 @map("ticket_id") @db.Uuid
+  documentRequestId    String?                @map("document_request_id") @db.Uuid
+  classification       DocumentClassification @default(CONFIDENTIAL)
+  uploadedByUserId     String?                @map("uploaded_by_user_id") @db.Uuid
+  storageBucket        String                 @map("storage_bucket")
+  storageKey           String                 @map("storage_key")
+  kekId                String                 @map("kek_id")
+  wrappedDek           Bytes                  @map("wrapped_dek")
+  contentIv            Bytes                  @map("content_iv")
+  contentAuthTag       Bytes                  @map("content_auth_tag")
+  metadataEnc          Bytes                  @map("metadata_enc")
+  mimeType             String                 @map("mime_type")
+  plaintextSizeBytes   BigInt                 @map("plaintext_size_bytes")
+  plaintextSha256      Bytes                  @map("plaintext_sha256")
+  ciphertextSha256     Bytes                  @map("ciphertext_sha256")
+  scanStatus           ScanStatus             @default(PENDING) @map("scan_status")
+  scannedAt            DateTime?              @map("scanned_at") @db.Timestamptz(6)
+  deletedAt            DateTime?              @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId      String?                @map("deleted_by_user_id") @db.Uuid
+  createdAt            DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime               @default(now()) @map("updated_at") @db.Timestamptz(6)
+  documentAccessTokens DocumentAccessToken[]
+  deletedByUser        User?                  @relation("DocumentsDeletedByUserId", fields: [deletedByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  documentRequest      DocumentRequest?       @relation(fields: [documentRequestId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ticket               Ticket                 @relation(fields: [ticketId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  uploadedByUser       User?                  @relation("DocumentsUploadedByUserId", fields: [uploadedByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([storageBucket, storageKey], map: "documents_storage_unique")
+  @@index([kekId], map: "documents_kek_idx")
+  @@index([createdAt], map: "documents_scan_pending_idx", where: raw("(scan_status = 'PENDING'::scan_status)"))
+  @@index([ticketId], map: "documents_ticket_idx", where: raw("(deleted_at IS NULL)"))
+  @@map("documents")
+}
+
+/// Table `emergency_overrides`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model EmergencyOverride {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agendaDayId       String          @map("agenda_day_id") @db.Uuid
+  action            EmergencyAction
+  effectiveFrom     DateTime        @map("effective_from") @db.Timestamptz(6)
+  internalReason    String?         @map("internal_reason")
+  initiatedByUserId String          @map("initiated_by_user_id") @db.Uuid
+  idempotencyKey    String          @unique @map("idempotency_key")
+  jobId             String?         @map("job_id")
+  jobStatus         JobStatus       @default(PENDING) @map("job_status")
+  affectedCount     Int?            @map("affected_count")
+  lastError         String?         @map("last_error")
+  completedAt       DateTime?       @map("completed_at") @db.Timestamptz(6)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
+  appointments      Appointment[]
+  agendaDay         AgendaDay       @relation(fields: [agendaDayId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  initiatedByUser   User            @relation(fields: [initiatedByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  notifications     Notification[]
+
+  @@index([agendaDayId], map: "emergency_overrides_day_idx")
+  @@map("emergency_overrides")
+}
+
+/// Table `external_entities`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model ExternalEntity {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entityType         ExternalEntityType  @map("entity_type")
+  code               String              @unique
+  nameAr             String              @map("name_ar")
+  parentId           String?             @map("parent_id") @db.Uuid
+  defaultPriority    PriorityTier        @default(CRITICAL) @map("default_priority")
+  contactEmail       String?             @map("contact_email") @db.Citext
+  contactPhone       String?             @map("contact_phone")
+  isActive           Boolean             @default(true) @map("is_active")
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
+  audienceRequests   AudienceRequest[]
+  parent             ExternalEntity?     @relation("ExternalEntityHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children           ExternalEntity[]    @relation("ExternalEntityHierarchy")
+  routingAssignments RoutingAssignment[]
+
+  @@map("external_entities")
+}
+
+/// Table `grievances`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model Grievance {
+  ticketId                     String         @id @map("ticket_id") @db.Uuid
+  ticketKind                   TicketKind     @default(GRIEVANCE) @map("ticket_kind")
+  grievanceType                GrievanceType  @map("grievance_type")
+  subject                      String
+  description                  String
+  respondentLawyerId           String?        @map("respondent_lawyer_id") @db.Uuid
+  respondentRegistrationNumber String?        @map("respondent_registration_number")
+  courtName                    String?        @map("court_name")
+  caseNumber                   String?        @map("case_number")
+  incidentDate                 DateTime?      @map("incident_date") @db.Date
+  createdAt                    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                    DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
+  respondentLawyer             LawyerProfile? @relation(fields: [respondentLawyerId], references: [userId], onDelete: NoAction, onUpdate: NoAction)
+  ticket                       Ticket         @relation(fields: [ticketId, ticketKind], references: [id, kind], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([ticketId, ticketKind], map: "grievances_ticket_kind_unique")
+  @@index([respondentLawyerId], map: "grievances_respondent_idx")
+  @@map("grievances")
+}
+
+/// Table `idempotency_keys`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model IdempotencyKey {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scope          String
+  userId         String?  @map("user_id") @db.Uuid
+  key            String
+  requestHash    Bytes    @map("request_hash")
+  responseStatus Int?     @map("response_status") @db.SmallInt
+  responseBody   Json?    @map("response_body")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(6)
+  user           User?    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([scope, userId, key], map: "idempotency_keys_unique")
+  @@index([expiresAt], map: "idempotency_keys_expiry_idx")
+  @@map("idempotency_keys")
+}
+
+/// Table `lawyer_profiles`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model LawyerProfile {
+  userId             String               @id @map("user_id") @db.Uuid
+  registrationNumber String               @unique @map("registration_number")
+  nationalIdHmac     Bytes                @unique @map("national_id_hmac")
+  nationalIdEnc      Bytes                @map("national_id_enc")
+  nationalIdKeyId    String               @map("national_id_key_id")
+  branchId           String               @map("branch_id") @db.Uuid
+  practiceStatus     LawyerPracticeStatus @map("practice_status")
+  registeredOn       DateTime?            @map("registered_on") @db.Date
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
+  grievances         Grievance[]
+  branch             OrganizationalUnit   @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user               User                 @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([branchId], map: "lawyer_profiles_branch_idx")
+  @@map("lawyer_profiles")
+}
+
+/// Table `notification_templates`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model NotificationTemplate {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code            String
+  channel         NotificationChannel
+  locale          String              @default("ar")
+  version         Int
+  subject         String?
+  body            String
+  isActive        Boolean             @default(true) @map("is_active")
+  createdByUserId String?             @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
+  createdByUser   User?               @relation(fields: [createdByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  notifications   Notification[]
+
+  // PARTIAL UNIQUE (see note on partial uniques at the top of this file).
+  @@unique([code, channel, locale], map: "notification_templates_one_active", where: raw("is_active"))
+  @@unique([code, channel, locale, version], map: "notification_templates_version_unique")
+  @@map("notification_templates")
+}
+
+/// Table `notifications`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model Notification {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  channel             NotificationChannel
+  templateId          String               @map("template_id") @db.Uuid
+  recipientUserId     String?              @map("recipient_user_id") @db.Uuid
+  recipientAddress    String               @map("recipient_address")
+  payload             Json                 @default("{}")
+  renderedSubject     String?              @map("rendered_subject")
+  renderedBody        String?              @map("rendered_body")
+  status              NotificationStatus   @default(QUEUED)
+  attempts            Int                  @default(0) @db.SmallInt
+  maxAttempts         Int                  @default(5) @map("max_attempts") @db.SmallInt
+  nextAttemptAt       DateTime             @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  lastError           String?              @map("last_error")
+  provider            String?
+  providerMessageId   String?              @map("provider_message_id")
+  ticketId            String?              @map("ticket_id") @db.Uuid
+  appointmentId       String?              @map("appointment_id") @db.Uuid
+  emergencyOverrideId String?              @map("emergency_override_id") @db.Uuid
+  dedupeKey           String?              @unique @map("dedupe_key")
+  sentAt              DateTime?            @map("sent_at") @db.Timestamptz(6)
+  deliveredAt         DateTime?            @map("delivered_at") @db.Timestamptz(6)
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
+  appointment         Appointment?         @relation(fields: [appointmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  emergencyOverride   EmergencyOverride?   @relation(fields: [emergencyOverrideId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  recipientUser       User?                @relation(fields: [recipientUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  template            NotificationTemplate @relation(fields: [templateId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ticket              Ticket?              @relation(fields: [ticketId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([nextAttemptAt], map: "notifications_dispatch_idx", where: raw("(status = ANY (ARRAY['QUEUED'::notification_status, 'FAILED'::notification_status]))"))
+  @@index([emergencyOverrideId], map: "notifications_override_idx", where: raw("(emergency_override_id IS NOT NULL)"))
+  @@index([ticketId], map: "notifications_ticket_idx")
+  @@map("notifications")
+}
+
+/// Table `organizational_units`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model OrganizationalUnit {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unitType           OrgUnitType          @map("unit_type")
+  code               String               @unique
+  nameAr             String               @map("name_ar")
+  /// PARTIAL UNIQUE: unique only among rows matching the index predicate.
+  /// Never use it in findUnique / upsert / connect — query with findFirst + the predicate.
+  governorate        Governorate?         @unique(map: "org_units_one_branch_per_governorate", where: raw("(unit_type = 'REGIONAL_BRANCH'::org_unit_type)"))
+  parentId           String?              @map("parent_id") @db.Uuid
+  isActive           Boolean              @default(true) @map("is_active")
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
+  lawyerProfiles     LawyerProfile[]
+  parent             OrganizationalUnit?  @relation("OrganizationalUnitHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children           OrganizationalUnit[] @relation("OrganizationalUnitHierarchy")
+  rooms              Room[]
+  routingAssignments RoutingAssignment[]
+  userRoles          UserRoleGrant[]
+
+  @@index([parentId], map: "org_units_parent_idx")
+  @@map("organizational_units")
+}
+
+/// Table `refresh_tokens`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model RefreshToken {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// PARTIAL UNIQUE: unique only among rows matching the index predicate.
+  /// Never use it in findUnique / upsert / connect — query with findFirst + the predicate.
+  sessionId      String         @unique(map: "refresh_tokens_one_live_per_session", where: raw("(rotated_at IS NULL)")) @map("session_id") @db.Uuid
+  tokenHash      Bytes          @unique @map("token_hash")
+  issuedAt       DateTime       @default(now()) @map("issued_at") @db.Timestamptz(6)
+  expiresAt      DateTime       @map("expires_at") @db.Timestamptz(6)
+  rotatedAt      DateTime?      @map("rotated_at") @db.Timestamptz(6)
+  replacedById   String?        @map("replaced_by_id") @db.Uuid
+  replacedBy     RefreshToken?  @relation("RefreshTokenRotation", fields: [replacedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replacedTokens RefreshToken[] @relation("RefreshTokenRotation")
+  session        Session        @relation(fields: [sessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("refresh_tokens")
+}
+
+/// Table `rooms`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model Room {
+  id           String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String              @unique
+  nameAr       String              @map("name_ar")
+  locationAr   String?             @map("location_ar")
+  orgUnitId    String?             @map("org_unit_id") @db.Uuid
+  capacity     Int                 @db.SmallInt
+  isActive     Boolean             @default(true) @map("is_active")
+  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
+  appointments Appointment[]
+  orgUnit      OrganizationalUnit? @relation(fields: [orgUnitId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("rooms")
+}
+
+/// Table `routing_assignments`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model RoutingAssignment {
+  id                     String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// PARTIAL UNIQUE: unique only among rows matching the index predicate.
+  /// Never use it in findUnique / upsert / connect — query with findFirst + the predicate.
+  ticketId               String              @unique(map: "routing_one_open_per_ticket", where: raw("(status = ANY (ARRAY['ACTIVE'::routing_status, 'ACKNOWLEDGED'::routing_status]))")) @map("ticket_id") @db.Uuid
+  targetType             RoutingTargetType   @map("target_type")
+  targetOrgUnitId        String?             @map("target_org_unit_id") @db.Uuid
+  targetExternalEntityId String?             @map("target_external_entity_id") @db.Uuid
+  status                 RoutingStatus       @default(ACTIVE)
+  instructions           String?
+  assignedByUserId       String              @map("assigned_by_user_id") @db.Uuid
+  assignedAt             DateTime            @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  acknowledgedAt         DateTime?           @map("acknowledged_at") @db.Timestamptz(6)
+  resolvedAt             DateTime?           @map("resolved_at") @db.Timestamptz(6)
+  resolutionNote         String?             @map("resolution_note")
+  createdAt              DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
+  assignedByUser         User                @relation(fields: [assignedByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  targetExternalEntity   ExternalEntity?     @relation(fields: [targetExternalEntityId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  targetOrgUnit          OrganizationalUnit? @relation(fields: [targetOrgUnitId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ticket                 Ticket              @relation(fields: [ticketId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([targetExternalEntityId, status], map: "routing_entity_inbox_idx")
+  @@index([ticketId, assignedAt], map: "routing_ticket_idx")
+  @@index([targetOrgUnitId, status], map: "routing_unit_inbox_idx")
+  @@map("routing_assignments")
+}
+
+/// Table `sessions`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model Session {
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String                @map("user_id") @db.Uuid
+  ip                   String?               @db.Inet
+  userAgent            String?               @map("user_agent")
+  mfaVerifiedAt        DateTime?             @map("mfa_verified_at") @db.Timestamptz(6)
+  lastSeenAt           DateTime              @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  absoluteExpiresAt    DateTime              @map("absolute_expires_at") @db.Timestamptz(6)
+  revokedAt            DateTime?             @map("revoked_at") @db.Timestamptz(6)
+  revokedReason        String?               @map("revoked_reason")
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  documentAccessTokens DocumentAccessToken[]
+  refreshTokens        RefreshToken[]
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([userId], map: "sessions_user_active_idx", where: raw("(revoked_at IS NULL)"))
+  @@map("sessions")
+}
+
+/// Table `ticket_status_transitions`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model TicketStatusTransition {
+  kind       TicketKind
+  fromStatus RequestStatus @map("from_status")
+  toStatus   RequestStatus @map("to_status")
+
+  @@id([kind, fromStatus, toStatus])
+  @@map("ticket_status_transitions")
+}
+
+/// Table `tickets`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model Ticket {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referenceCode      String              @unique @map("reference_code")
+  kind               TicketKind
+  status             RequestStatus       @default(PENDING_REVIEW)
+  priority           PriorityTier
+  submissionChannel  SubmissionChannel   @map("submission_channel")
+  submittedByUserId  String?             @map("submitted_by_user_id") @db.Uuid
+  assignedOfficerId  String?             @map("assigned_officer_id") @db.Uuid
+  submittedAt        DateTime            @default(now()) @map("submitted_at") @db.Timestamptz(6)
+  statusChangedAt    DateTime            @default(now()) @map("status_changed_at") @db.Timestamptz(6)
+  closedAt           DateTime?           @map("closed_at") @db.Timestamptz(6)
+  version            Int                 @default(1)
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
+  actionTokens       ActionToken[]
+  appointments       Appointment[]
+  audienceRequest    AudienceRequest?
+  documentRequests   DocumentRequest[]
+  documents          Document[]
+  grievance          Grievance?
+  notifications      Notification[]
+  routingAssignments RoutingAssignment[]
+  assignedOfficer    User?               @relation("TicketsAssignedOfficerId", fields: [assignedOfficerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  submittedByUser    User?               @relation("TicketsSubmittedByUserId", fields: [submittedByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([id, kind], map: "tickets_id_kind_unique")
+  @@index([assignedOfficerId], map: "tickets_officer_idx", where: raw("(closed_at IS NULL)"))
+  @@index([priority, submittedAt], map: "tickets_queue_idx", where: raw("(status = ANY (ARRAY['PENDING_REVIEW'::request_status, 'AWAITING_DOCUMENTS'::request_status]))"))
+  @@index([submittedByUserId, submittedAt(sort: Desc)], map: "tickets_submitter_idx")
+  @@map("tickets")
+}
+
+/// Table `user_roles`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model UserRoleGrant {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String              @map("user_id") @db.Uuid
+  /// PARTIAL UNIQUE: unique only among rows matching the index predicate.
+  /// Never use it in findUnique / upsert / connect — query with findFirst + the predicate.
+  role            UserRole            @unique(map: "user_roles_single_grand_syndic", where: raw("((role = 'GRAND_SYNDIC'::user_role) AND (revoked_at IS NULL))"))
+  orgUnitId       String?             @map("org_unit_id") @db.Uuid
+  grantedByUserId String?             @map("granted_by_user_id") @db.Uuid
+  grantedAt       DateTime            @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt       DateTime?           @map("revoked_at") @db.Timestamptz(6)
+  grantedByUser   User?               @relation("UserRolesGrantedByUserId", fields: [grantedByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  orgUnit         OrganizationalUnit? @relation(fields: [orgUnitId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user            User                @relation("UserRolesUserId", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // PARTIAL UNIQUE (see note on partial uniques at the top of this file).
+  @@unique([userId, role, orgUnitId], map: "user_roles_active_unique", where: raw("(revoked_at IS NULL)"))
+  @@map("user_roles")
+}
+
+/// Table `users`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
+model User {
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fullName              String                 @map("full_name")
+  email                 String?                @unique @db.Citext
+  phoneE164             String?                @unique @map("phone_e164")
+  passwordHash          String                 @map("password_hash")
+  status                UserStatus             @default(PENDING_ACTIVATION)
+  mfaTotpSecretEnc      Bytes?                 @map("mfa_totp_secret_enc")
+  mfaKeyId              String?                @map("mfa_key_id")
+  mfaEnabledAt          DateTime?              @map("mfa_enabled_at") @db.Timestamptz(6)
+  failedLoginCount      Int                    @default(0) @map("failed_login_count")
+  lockedUntil           DateTime?              @map("locked_until") @db.Timestamptz(6)
+  lastLoginAt           DateTime?              @map("last_login_at") @db.Timestamptz(6)
+  passwordChangedAt     DateTime               @default(now()) @map("password_changed_at") @db.Timestamptz(6)
+  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime               @default(now()) @map("updated_at") @db.Timestamptz(6)
+  agendaDays            AgendaDay[]
+  attendees             AppointmentAttendee[]
+  principalAppointments Appointment[]          @relation("AppointmentsPrincipalUserId")
+  scheduledAppointments Appointment[]          @relation("AppointmentsScheduledByUserId")
+  auditLogs             AuditLog[]
+  documentAccessTokens  DocumentAccessToken[]
+  documentRequests      DocumentRequest[]
+  deletedDocuments      Document[]             @relation("DocumentsDeletedByUserId")
+  uploadedDocuments     Document[]             @relation("DocumentsUploadedByUserId")
+  emergencyOverrides    EmergencyOverride[]
+  idempotencyKeys       IdempotencyKey[]
+  lawyerProfile         LawyerProfile?
+  notificationTemplates NotificationTemplate[]
+  notifications         Notification[]
+  routingAssignments    RoutingAssignment[]
+  sessions              Session[]
+  assignedTickets       Ticket[]               @relation("TicketsAssignedOfficerId")
+  submittedTickets      Ticket[]               @relation("TicketsSubmittedByUserId")
+  grantedRoles          UserRoleGrant[]        @relation("UserRolesGrantedByUserId")
+  roles                 UserRoleGrant[]        @relation("UserRolesUserId")
+
+  @@map("users")
+}
+
+enum ActionTokenPurpose {
+  RESCHEDULE_RESPONSE
+  DOCUMENT_UPLOAD
+
+  @@map("action_token_purpose")
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  POSTPONED
+  RESCHEDULED
+  NO_SHOW
+
+  @@map("appointment_status")
+}
+
+enum AttendeeRole {
+  REQUESTER
+  ATTENDEE
+  STAFF
+
+  @@map("attendee_role")
+}
+
+enum DocumentClassification {
+  INTERNAL
+  CONFIDENTIAL
+  RESTRICTED
+
+  @@map("document_classification")
+}
+
+enum DocumentRequestStatus {
+  OPEN
+  FULFILLED
+  EXPIRED
+  CANCELLED
+
+  @@map("document_request_status")
+}
+
+enum EmergencyAction {
+  CANCEL
+  POSTPONE
+
+  @@map("emergency_action")
+}
+
+enum ExternalEntityType {
+  MINISTRY_OF_JUSTICE
+  SUPREME_JUDICIAL_COUNCIL
+  COURT
+  STATE_INSTITUTION
+  MEDIA_OUTLET
+  OTHER
+
+  @@map("external_entity_type")
+}
+
+enum Governorate {
+  DAMASCUS
+  RIF_DIMASHQ
+  ALEPPO
+  HOMS
+  HAMA
+  LATAKIA
+  TARTUS
+  IDLIB
+  RAQQA
+  DEIR_EZ_ZOR
+  HASAKAH
+  DARAA
+  SUWAYDA
+  QUNEITRA
+
+  @@map("governorate")
+}
+
+enum GrievanceType {
+  AGAINST_LAWYER
+  JUDICIAL_MATTER
+
+  @@map("grievance_type")
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+
+  @@map("job_status")
+}
+
+enum LawyerPracticeStatus {
+  PRACTISING
+  TRAINEE
+  SUSPENDED
+  NON_PRACTISING
+
+  @@map("lawyer_practice_status")
+}
+
+enum MeetingMode {
+  IN_PERSON
+  REMOTE
+
+  @@map("meeting_mode")
+}
+
+enum NotificationChannel {
+  SMS
+  EMAIL
+  IN_APP
+
+  @@map("notification_channel")
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  FAILED
+  CANCELLED
+
+  @@map("notification_status")
+}
+
+enum OrgUnitType {
+  GRAND_SYNDIC_OFFICE
+  CENTRAL_SECRETARIAT
+  REGIONAL_BRANCH
+  DISCIPLINARY_COMMITTEE
+  COMMITTEE
+
+  @@map("org_unit_type")
+}
+
+enum PriorityTier {
+  CRITICAL
+  INTERNAL
+  STANDARD
+
+  @@map("priority_tier")
+}
+
+enum RequestStatus {
+  PENDING_REVIEW
+  AWAITING_DOCUMENTS
+  DELEGATED
+  APPROVED
+  DECLINED
+  WITHDRAWN
+  CLOSED
+
+  @@map("request_status")
+}
+
+enum RequesterType {
+  CITIZEN
+  LAWYER
+  STATE_INSTITUTION
+  JUDICIAL_AUTHORITY
+  MEDIA
+  DELEGATION
+
+  @@map("requester_type")
+}
+
+enum RoutingStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RETURNED
+  COMPLETED
+
+  @@map("routing_status")
+}
+
+enum RoutingTargetType {
+  ORGANIZATIONAL_UNIT
+  EXTERNAL_ENTITY
+
+  @@map("routing_target_type")
+}
+
+enum ScanStatus {
+  PENDING
+  CLEAN
+  INFECTED
+  FAILED
+
+  @@map("scan_status")
+}
+
+enum SubmissionChannel {
+  PUBLIC_PORTAL
+  LAWYER_PORTAL
+  STAFF_ENTRY
+
+  @@map("submission_channel")
+}
+
+enum TicketKind {
+  AUDIENCE_REQUEST
+  GRIEVANCE
+
+  @@map("ticket_kind")
+}
+
+enum UserRole {
+  SYSTEM_ADMIN
+  AUDITOR
+  GRAND_SYNDIC
+  SECRETARIAT_HEAD
+  SECRETARIAT_OFFICER
+  BRANCH_OFFICER
+  COMMITTEE_MEMBER
+  LAWYER
+
+  @@map("user_role")
+}
+
+enum UserStatus {
+  PENDING_ACTIVATION
+  ACTIVE
+  SUSPENDED
+  DISABLED
+
+  @@map("user_status")
+}

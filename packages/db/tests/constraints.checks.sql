@@ -1,14 +1,19 @@
 -- =============================================================================
--- Executable checks for schema-draft.sql. Every rejection below must fail with
--- the exact SQLSTATE given, and every acceptance must succeed; otherwise the
--- script aborts. Run on a scratch database:
---   psql -v ON_ERROR_STOP=1 -f schema-draft.sql -f schema-draft.checks.sql
--- These become automated integration tests in Phase 5.
+-- Constraint checks against the migrated schema. Every rejection below must
+-- fail with the exact SQLSTATE given and every acceptance must succeed;
+-- otherwise the script aborts. Everything runs in one transaction that is
+-- rolled back, so the database is left exactly as it was.
+--
+-- Run as the schema owner (superuser in Docker/CI) on a migrated database
+-- with no Grand Syndic grant yet (i.e. before demo seeding):
+--   psql -v ON_ERROR_STOP=1 -f packages/db/tests/constraints.checks.sql
 -- =============================================================================
 
 \set QUIET on
 SET client_min_messages = notice;
 \o /dev/null
+
+BEGIN;
 
 CREATE FUNCTION pg_temp.expect_error(stmt text, expected_state text, label text)
 RETURNS void LANGUAGE plpgsql AS $$
@@ -358,5 +363,7 @@ BEGIN
   END IF;
   RAISE NOTICE 'ok  detects: tampered audit row id=%', broken;
 END $$;
+
+ROLLBACK;
 
 \echo 'ALL SCHEMA CHECKS PASSED'

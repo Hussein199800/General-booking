@@ -1,12 +1,10 @@
 -- =============================================================================
--- Syrian Bar Association — Phase 1 database schema  ·  DRAFT FOR REVIEW
---
--- This file is the executable form of docs/DATABASE.md. It is NOT a migration:
--- after approval it is split into Prisma-managed migrations (raw SQL where
--- Prisma cannot express a constraint) plus a seed script.
---
--- Validated against PostgreSQL 16 together with schema-draft.checks.sql:
---   psql -v ON_ERROR_STOP=1 -f schema-draft.sql -f schema-draft.checks.sql
+-- Migration: init_schema
+-- Full Phase 1 schema. Prisma cannot express most of what follows (EXCLUDE,
+-- CHECK and partial-unique constraints, generated columns, triggers), so this
+-- file is hand-written; prisma/schema.prisma mirrors it for the client and CI
+-- verifies the two do not drift (`prisma migrate diff --exit-code`).
+-- Design rationale: docs/DATABASE.md (decisions D1-D17).
 -- =============================================================================
 
 CREATE EXTENSION IF NOT EXISTS btree_gist;
@@ -29,7 +27,7 @@ CREATE TYPE user_role AS ENUM (
 
 CREATE TYPE user_status AS ENUM ('PENDING_ACTIVATION', 'ACTIVE', 'SUSPENDED', 'DISABLED');
 
--- OPEN QUESTION Q4: practice categories must match the Bar's own register.
+-- Decision Q4 (approved 2026-10-06): see docs/ar/DECISIONS.md.
 CREATE TYPE lawyer_practice_status AS ENUM ('PRACTISING', 'TRAINEE', 'SUSPENDED', 'NON_PRACTISING');
 
 CREATE TYPE governorate AS ENUM (
@@ -49,7 +47,7 @@ CREATE TYPE external_entity_type AS ENUM (
 
 CREATE TYPE ticket_kind AS ENUM ('AUDIENCE_REQUEST', 'GRIEVANCE');
 
--- OPEN QUESTION Q1: DECLINED is not among the three Secretariat actions in the brief.
+-- Decision Q1 (approved 2026-10-06): the Secretariat may decline; no reason is sent.
 CREATE TYPE request_status AS ENUM (
   'PENDING_REVIEW', 'AWAITING_DOCUMENTS', 'DELEGATED', 'APPROVED',
   'DECLINED', 'WITHDRAWN', 'CLOSED'
@@ -79,7 +77,7 @@ CREATE TYPE routing_status AS ENUM ('ACTIVE', 'ACKNOWLEDGED', 'RETURNED', 'COMPL
 
 CREATE TYPE document_request_status AS ENUM ('OPEN', 'FULFILLED', 'EXPIRED', 'CANCELLED');
 
--- OPEN QUESTION Q6: levels must mirror the Bar's / state's classification scheme.
+-- Decision Q6 (approved 2026-10-06): three levels.
 CREATE TYPE document_classification AS ENUM ('INTERNAL', 'CONFIDENTIAL', 'RESTRICTED');
 
 CREATE TYPE scan_status AS ENUM ('PENDING', 'CLEAN', 'INFECTED', 'FAILED');
@@ -360,7 +358,9 @@ CREATE TABLE audience_requests (
   expected_attendees      smallint NOT NULL DEFAULT 1 CHECK (expected_attendees BETWEEN 1 AND 50),
   created_at              timestamptz NOT NULL DEFAULT now(),
   updated_at              timestamptz NOT NULL DEFAULT now(),
-  FOREIGN KEY (ticket_id, ticket_kind) REFERENCES tickets (id, kind)
+  FOREIGN KEY (ticket_id, ticket_kind) REFERENCES tickets (id, kind),
+  -- Redundant with the primary key, but lets Prisma model the 1:1 subtype relation.
+  CONSTRAINT audience_requests_ticket_kind_unique UNIQUE (ticket_id, ticket_kind)
 );
 CREATE INDEX audience_requests_entity_idx ON audience_requests (external_entity_id);
 
@@ -379,6 +379,8 @@ CREATE TABLE grievances (
   created_at                       timestamptz NOT NULL DEFAULT now(),
   updated_at                       timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY (ticket_id, ticket_kind) REFERENCES tickets (id, kind),
+  -- Redundant with the primary key, but lets Prisma model the 1:1 subtype relation.
+  CONSTRAINT grievances_ticket_kind_unique UNIQUE (ticket_id, ticket_kind),
   CONSTRAINT grievances_peer_has_respondent CHECK (
     grievance_type <> 'AGAINST_LAWYER'
     OR respondent_lawyer_id IS NOT NULL OR respondent_registration_number IS NOT NULL),
@@ -884,29 +886,3 @@ BEGIN
       t || '_updated_at', t);
   END LOOP;
 END $$;
-
--- -----------------------------------------------------------------------------
--- 13. Least-privilege runtime role
--- -----------------------------------------------------------------------------
--- Migrations run as the schema owner; the API connects as sba_app, which can
--- never rewrite history even if the application is compromised.
-
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'sba_app') THEN
-    CREATE ROLE sba_app LOGIN;
-  END IF;
-END $$;
-
-GRANT USAGE ON SCHEMA public TO sba_app;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO sba_app;
-GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO sba_app;
-
-REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM sba_app;
-REVOKE ALL ON audit_chain_head FROM sba_app;
-REVOKE INSERT, UPDATE, DELETE, TRUNCATE
-  ON ticket_status_transitions, appointment_status_transitions FROM sba_app;
--- Legal records are never hard-deleted by the application.
-REVOKE DELETE ON tickets, audience_requests, grievances, appointments, appointment_attendees,
-  documents, routing_assignments, document_requests, notifications, users, lawyer_profiles,
-  user_roles, emergency_overrides FROM sba_app;
