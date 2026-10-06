@@ -7,7 +7,10 @@ import type { ReactNode } from 'react';
 import { t } from '@/i18n';
 
 export const metadata: Metadata = {
-  title: `${t('app.systemName')} — ${t('app.institutionName')}`,
+  title: {
+    default: `${t('app.systemName')} — ${t('app.institutionName')}`,
+    template: `%s — ${t('app.systemName')}`,
+  },
   robots: { index: false, follow: false },
 };
 

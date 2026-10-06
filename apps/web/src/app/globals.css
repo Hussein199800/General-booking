@@ -1,9 +1,14 @@
 @import 'tailwindcss';
 
 /*
- * Visual identity: deep navy with gold accents, high contrast (WCAG AA).
- * Layout must use logical utilities only (ms-/me-/ps-/pe-/start-/end-/text-start),
- * never physical left/right — enforced by ESLint.
+ * Visual identity — one palette, used everywhere:
+ *   navy  (institution, primary actions, hero surfaces)
+ *   gold  (accents only: rules, active markers, seal — never body text on white)
+ *   slate (neutral text, borders, backgrounds)
+ *   tier  (red / blue / green — reserved for Secretariat queue priority)
+ * Layout follows the reference portal: light grey canvas, white rounded cards,
+ * gradient hero card, sidebar on the inline-start side, mobile top bar.
+ * Use logical utilities only (ms-/me-/ps-/pe-/start-/end-/text-start) — enforced by ESLint.
  */
 @theme {
   --font-sans: Calibri, -apple-system, 'SF Arabic', 'SF Pro', system-ui, sans-serif;
@@ -12,34 +17,227 @@
   --color-navy-900: #0b1b3a;
   --color-navy-800: #12285a;
   --color-navy-700: #1b3a7a;
+  --color-navy-600: #2a4f99;
   --color-navy-100: #e6ebf5;
+  --color-navy-50: #f3f6fb;
 
+  --color-gold-700: #8a6a20;
   --color-gold-600: #a8832d;
   --color-gold-500: #c9a54a;
   --color-gold-300: #e6cf8f;
+  --color-gold-100: #f6edd6;
   --color-gold-50: #fbf7ec;
 
-  --color-parchment: #fdfcf8;
+  --color-canvas: #f1f3f6;
+  --color-surface: #ffffff;
+  --color-line: #e3e7ee;
+  --color-ink: #14213d;
+  --color-ink-muted: #56637a;
+  --color-ink-subtle: #7b879b;
 
-  /* Secretariat queue tiers. */
   --color-tier-critical: #b42318;
+  --color-tier-critical-bg: #fef3f2;
   --color-tier-internal: #1d4ed8;
+  --color-tier-internal-bg: #eff4ff;
   --color-tier-standard: #15803d;
+  --color-tier-standard-bg: #effaf3;
+
+  --radius-card: 1.25rem;
+  --radius-control: 0.875rem;
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 8px 24px rgb(16 24 40 / 0.06);
+  --shadow-raised: 0 12px 32px rgb(11 27 58 / 0.18);
 }
 
 @layer base {
   html {
     font-family: var(--font-sans);
     -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
-    background-color: var(--color-parchment);
-    color: var(--color-navy-950);
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    line-height: 1.6;
   }
 
   :focus-visible {
     outline: 3px solid var(--color-gold-500);
     outline-offset: 2px;
+  }
+
+  dialog::backdrop {
+    background: rgb(7 18 38 / 0.55);
+    backdrop-filter: blur(2px);
+  }
+}
+
+@layer components {
+  .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .hero {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-card);
+    color: var(--color-gold-50);
+    background: linear-gradient(135deg, var(--color-navy-900) 0%, var(--color-navy-700) 100%);
+    box-shadow: var(--shadow-raised);
+  }
+
+  /* Decorative rings, as on the reference portal. */
+  .hero::before,
+  .hero::after {
+    content: '';
+    position: absolute;
+    border-radius: 9999px;
+    border: 1px solid rgb(201 165 74 / 0.25);
+    pointer-events: none;
+  }
+  .hero::before {
+    inline-size: 18rem;
+    block-size: 18rem;
+    inset-block-start: -9rem;
+    inset-inline-end: -6rem;
+  }
+  .hero::after {
+    inline-size: 14rem;
+    block-size: 14rem;
+    inset-block-end: -8rem;
+    inset-inline-start: -4rem;
+    background: rgb(255 255 255 / 0.04);
+  }
+
+  .stat-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-block-start: 4px solid var(--stat-accent, var(--color-navy-800));
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    padding: 1rem 1.25rem;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-block-size: 2.75rem;
+    padding-inline: 1.125rem;
+    border-radius: var(--radius-control);
+    font-weight: 700;
+    font-size: 0.95rem;
+    transition:
+      background-color 150ms,
+      box-shadow 150ms,
+      border-color 150ms;
+    cursor: pointer;
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    color: #fff;
+    background: linear-gradient(135deg, var(--color-navy-800), var(--color-navy-700));
+    box-shadow: 0 6px 16px rgb(18 40 90 / 0.25);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-navy-900);
+  }
+  .btn-secondary {
+    color: var(--color-navy-800);
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    border-color: var(--color-navy-600);
+  }
+  .btn-danger {
+    color: var(--color-tier-critical);
+    background: var(--color-surface);
+    border: 1px solid #f3c4bf;
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: var(--color-tier-critical-bg);
+  }
+  .btn-danger-solid {
+    color: #fff;
+    background: var(--color-tier-critical);
+  }
+
+  .field-label {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-block-end: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--color-ink);
+  }
+
+  .input {
+    inline-size: 100%;
+    min-block-size: 2.75rem;
+    padding: 0.5rem 0.875rem;
+    border: 1px solid #cfd6e2;
+    border-radius: var(--radius-control);
+    background: #f9fafc;
+    color: var(--color-ink);
+    font-size: 1rem;
+  }
+  .input:focus {
+    outline: none;
+    border-color: var(--color-navy-600);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgb(42 79 153 / 0.15);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: var(--radius-control);
+    color: var(--color-ink);
+  }
+  .nav-item:hover {
+    background: var(--color-navy-50);
+  }
+  .nav-item[aria-current='page'] {
+    color: #fff;
+    background: linear-gradient(135deg, var(--color-navy-900), var(--color-navy-700));
+    box-shadow: 0 6px 16px rgb(11 27 58 / 0.2);
+  }
+  .nav-item[aria-disabled='true'] {
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
+  .dialog {
+    inline-size: min(36rem, calc(100vw - 2rem));
+    max-block-size: calc(100dvh - 2rem);
+    margin: auto;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+    color: var(--color-ink);
+    box-shadow: var(--shadow-raised);
   }
 }

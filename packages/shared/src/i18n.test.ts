@@ -16,6 +16,11 @@ describe('t', () => {
     expect(name).toBe(ar.branch.councilName.replace('{{governorate}}', ar.governorates.HOMS));
   });
 
+  it('renders numeric parameters in the display locale digits', () => {
+    const expected = new Intl.NumberFormat('ar-SY').format(30);
+    expect(t('secretariat.approve.minutes', { count: 30 })).toContain(expected);
+  });
+
   it('throws on a missing placeholder parameter', () => {
     expect(() => t('branch.councilName')).toThrow(/Missing parameter "governorate"/);
   });

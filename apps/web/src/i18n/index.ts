@@ -3,4 +3,12 @@
  * comes from packages/shared/locales/ar.json via `t()`; components must not
  * contain Arabic literals (enforced by ESLint).
  */
-export { formatDateTime, t, type MessageKey } from '@sba/shared';
+export {
+  formatDate,
+  formatDateTime,
+  formatNumber,
+  formatRelative,
+  formatTime,
+  t,
+  type MessageKey,
+} from '@sba/shared';

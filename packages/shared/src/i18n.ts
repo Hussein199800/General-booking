@@ -15,6 +15,13 @@ export type MessageParams = Readonly<Record<string, string | number>>;
 
 const PLACEHOLDER = /\{\{\s*(\w+)\s*\}\}/g;
 
+const numberFormatter = new Intl.NumberFormat(DISPLAY_LOCALE);
+
+/** Numbers in the display locale's digits (decision Q16: Eastern Arabic numerals). */
+export function formatNumber(value: number): string {
+  return numberFormatter.format(value);
+}
+
 function lookup(key: string): string {
   let node: unknown = ar;
   for (const segment of key.split('.')) {
@@ -58,7 +65,7 @@ export function interpolate(template: string, params: MessageParams, context = '
     if (value === undefined) {
       throw new Error(`Missing parameter "${name}" for ${context}`);
     }
-    return String(value);
+    return typeof value === 'number' ? formatNumber(value) : value;
   });
 }
 
@@ -73,7 +80,44 @@ const dateTimeFormatter = new Intl.DateTimeFormat(DISPLAY_LOCALE, {
   timeStyle: 'short',
 });
 
+const dateFormatter = new Intl.DateTimeFormat(DISPLAY_LOCALE, {
+  timeZone: DISPLAY_TIME_ZONE,
+  dateStyle: 'full',
+});
+
+const timeFormatter = new Intl.DateTimeFormat(DISPLAY_LOCALE, {
+  timeZone: DISPLAY_TIME_ZONE,
+  timeStyle: 'short',
+});
+
+const relativeFormatter = new Intl.RelativeTimeFormat(DISPLAY_LOCALE, { numeric: 'auto' });
+
 /** Formats a UTC instant for display in Damascus local time. */
 export function formatDateTime(instant: Date): string {
   return dateTimeFormatter.format(instant);
+}
+
+/** The Damascus calendar date of an instant, e.g. «الثلاثاء، ٦ تشرين الأول ٢٠٢٦». */
+export function formatDate(instant: Date): string {
+  return dateFormatter.format(instant);
+}
+
+/** The Damascus wall-clock time of an instant. */
+export function formatTime(instant: Date): string {
+  return timeFormatter.format(instant);
+}
+
+/** «قبل ٣ ساعات», «أمس» … relative to `now`. */
+export function formatRelative(instant: Date, now: Date = new Date()): string {
+  const seconds = Math.round((instant.getTime() - now.getTime()) / 1000);
+  const steps: [Intl.RelativeTimeFormatUnit, number][] = [
+    ['day', 86_400],
+    ['hour', 3_600],
+    ['minute', 60],
+  ];
+  for (const [unit, size] of steps) {
+    if (Math.abs(seconds) >= size)
+      return relativeFormatter.format(Math.round(seconds / size), unit);
+  }
+  return relativeFormatter.format(0, 'minute');
 }

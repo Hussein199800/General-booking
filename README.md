@@ -7,6 +7,7 @@ grievances, the Grand Syndic's agenda, and encrypted legal documents.
 
 - **Architecture:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - **Database design:** [`docs/DATABASE.md`](docs/DATABASE.md)
+- **Live demo preview (demo data only):** https://hussein199800.github.io/General-booking/
 - **Owner-facing documents (Arabic):** [`docs/ar/`](docs/ar) — approved decisions, phase summaries
 - **Contributor rules:** [`CLAUDE.md`](CLAUDE.md)
 

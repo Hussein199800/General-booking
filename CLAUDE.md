@@ -86,6 +86,10 @@ apps/
   web/                 Next.js App Router, Arabic RTL.
     src/proxy.ts       per-request CSP nonce (Next 16 "proxy", formerly middleware)
     src/i18n/          re-exports t() — the only way components get text
+    src/components/    AppShell (sidebar / mobile drawer), Seal, Badges, PreviewBanner
+    src/features/      secretariat/, syndic/ screens (demo data until Phase 4 wires the API)
+    src/demo/          data.json (fictional, Arabic) + typed loader
+    SBA_PREVIEW=1      static export for the GitHub Pages preview (.github/workflows/pages.yml)
 packages/
   shared/              Domain constants, state machines, i18n, shared types. Built to dist/ (ESM).
     locales/ar.json    THE single source of user-facing Arabic text (incl. notification templates)
@@ -133,6 +137,10 @@ pnpm --filter @sba/db drift                                           # Prisma s
 - **API:** all routes under `/api/v1`. Mutating endpoints require an `Idempotency-Key` header.
 - **IDs:** UUID primary keys; human-facing reference codes are separate columns.
 - **Imports:** ESM with explicit `.js` extensions in `apps/api` and `packages/shared`.
+- **UI design system:** tokens and component classes (`card`, `hero`, `stat-card`, `btn-*`,
+  `input`, `badge`, `nav-item`, `dialog`) live in `apps/web/src/app/globals.css`; reuse
+  them rather than ad-hoc colours. Gold is for accents, never body text on white.
+  Numbers display in Eastern Arabic digits (`formatNumber`, and `t()` formats numeric params).
 - **Errors to users:** Arabic message from `ar.json` + stable English error code; never
   leak stack traces or internal identifiers.
 - **Commits:** English, imperative mood, scoped (`api: add queue endpoint`).
