@@ -48,15 +48,40 @@ _Accept (e2e):_ wrong password → generic error and counter increments; 5 failu
 - Every action: role guard, validation, state-machine check in the service, audit entry, outbox notification where applicable, idempotency on mutations.
   _Accept (e2e):_ full flow intake → triage → approve → agenda → transfer → schedule → track → complete; two concurrent approvals for the same slot → exactly one succeeds; a lawyer cannot read another lawyer's ticket by id; private entries are masked for the Secretariat; audit chain verifies after the suite.
 
-### B4 · Web wiring (P1/P2) ☐ — depends on B3
+### B4 · Web wiring (P1/P2) ☑ — depends on B3
 
 Same-origin proxy (I-2); real login (password, TOTP, enrolment); session refresh; Secretariat dashboard, agenda, Grand Syndic and member screens on the API; public request form; lawyer portal (sign-in, grievance, audience request, my tickets); loading, empty and error states; Arabic error messages from API codes; print stylesheet.
 _Accept:_ browser e2e against the real API: sign in, approve a request, see it on the Grand Syndic's agenda; public form submission returns a reference number; network failure shows an error state, not stale success.
 
-### B5 · Documentation and hand-over (P2) ☐
+### B5 · Documentation and hand-over (P2) ☑
 
 `SECURITY.md`, `TESTING.md`, `DEPLOYMENT.md` (environments, secrets, backups and restore drill, rollback), updated `ARCHITECTURE.md`, `README.md`, Arabic summary `docs/ar/PHASE-2.md`.
 
 ### Phase 3 (not in this cycle)
 
 Document storage (MinIO, envelope encryption, malware scan, 5-minute session-bound view URLs); BullMQ notification workers with SMTP / local SMS adapters and retries; Jitsi meeting links; reports (delay, processing time) and export; external anchoring of the audit-chain head; backup automation.
+
+## Outcome of this cycle
+
+All batches B0–B5 are done; evidence is in [`TESTING.md`](TESTING.md). Decisions
+taken during implementation (small, reversible; recorded here as asked):
+
+| #    | Decision                                                                          | Why                                                                         |
+| ---- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| I-10 | Emergency postponement runs in one transaction instead of a worker job            | No workers yet; one day's audiences is a small set; all-or-nothing is safer |
+| I-11 | Reschedule token in the URL fragment                                              | Fragments are not sent to servers, so tokens stay out of access logs        |
+| I-12 | `DAY_SUSPENDED` error code for bookings on a suspended day                        | The DB trigger alone gave a generic, misleading message                     |
+| I-13 | Agenda days created with `INSERT … ON CONFLICT DO NOTHING`                        | Two first bookings of a day raced on the day row instead of the slot        |
+| I-14 | Secretariat officers may read the summary figures (`/reports/summary`)            | The dashboard counters need them; figures only, no personal data            |
+| I-15 | Approvals and transfer bookings must start in the future                          | A past start is a typing error, never a booking                             |
+| I-16 | First administrator via `admin:create` CLI only                                   | No default credentials anywhere                                             |
+| I-17 | Browser tests live in their own workspace package (`e2e/`) and run the built apps | Tests what is deployed, not the dev server                                  |
+
+## Next (needs owner approval or Phase 3)
+
+1. Administration screen (accounts, roles, rooms) — today API-only.
+2. Notification workers (SMTP, local SMS gateway) with retries — needs the SMS provider decision.
+3. Encrypted document storage (MinIO) with malware scanning and short-lived viewing links.
+4. Self-hosted CAPTCHA on the public form (Q-A4).
+5. Reports and CSV/PDF export; print layouts for the daily agenda.
+6. Deployment to the chosen server, restore drill, external anchoring of the audit-chain head.

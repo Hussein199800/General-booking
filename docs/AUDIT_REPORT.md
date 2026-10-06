@@ -139,7 +139,21 @@ written to `localStorage`. **Fix:** Phase 2 API (§ plan B2–B4) and web wiring
 | Untested infrastructure (Compose, backups)    | High       | High at go-live                      | Deployment runbook and restore drill before production                  |
 | Single-row audit chain contention             | Low        | Low                                  | Monitor; batch sealing if needed                                        |
 
-## 6. What is solid and must be kept
+## 6. Resolution (end of this cycle)
+
+| Finding                                                             | Status                                                                               | Where                                                                                           |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| P0-1 demo screens served unauthenticated                            | Fixed — demo only in preview/demo builds; real pages need a session and read the API | `lib/runtime.ts`, `lib/session.tsx`, browser test "send a visitor without a session to sign in" |
+| P0-2 vulnerable transitive dependencies                             | Fixed — `pnpm audit --prod` clean                                                    | `pnpm-workspace.yaml` overrides                                                                 |
+| P0-3 no backend                                                     | Fixed — API with auth, RBAC, audit, idempotency; web wired to it                     | `apps/api`, `apps/web/src/data`                                                                 |
+| P1 auth/RBAC, intake, lawyer portal, audit writes, outbox           | Fixed                                                                                | `SECURITY.md`                                                                                   |
+| P1 documents                                                        | Open — Phase 3                                                                       |                                                                                                 |
+| P2 dev script, empty/error states                                   | Fixed                                                                                | `apps/api/scripts/dev.mjs`, `ResourceStatus`                                                    |
+| P2 Compose stack and Jitsi unverified, print stylesheet             | Open                                                                                 | `DEPLOYMENT.md`                                                                                 |
+| P3 reports/export                                                   | Partial — summary figures only                                                       | `/reports/summary`                                                                              |
+| New: CI lint failed on fresh checkouts (stale local `dist/` hid it) | Fixed                                                                                | `build:deps` builds `@sba/db`                                                                   |
+
+## 7. What is solid and must be kept
 
 The database design and its 56 constraint checks; the crypto package; the shared
 state machines and i18n; the design system and RTL enforcement; the CI that

@@ -78,13 +78,13 @@ the API contract.
 
 ### API surface by tier
 
-| Tier          | Route prefix                                    | Caller identity                                                          | Notes                                                                      |
-| ------------- | ----------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| 1 Public      | `/api/v1/public/*`, `/api/v1/reschedule/:token` | Anonymous (CAPTCHA + rate limit) or single-use token                     | Write-mostly. Returns a reference code, never availability.                |
-| 2 Lawyer      | `/api/v1/lawyer/*`                              | Lawyer session (registration no. + national ID + password, optional OTP) | Sees only own tickets and appointments.                                    |
-| 3 Secretariat | `/api/v1/secretariat/*`                         | Secretariat session, MFA verified                                        | Only tier that can approve, delegate or request documents.                 |
-| 4 Syndic      | `/api/v1/syndic/*`                              | Grand Syndic session, MFA verified                                       | Read-only agenda + emergency reschedule.                                   |
-| — Documents   | `/api/v1/documents/:id/view-url`                | Any staff/lawyer session with access to the parent ticket                | Issues a ≤ 5-minute, session-bound URL; every issue and access is audited. |
+| Tier          | Route prefix                                   | Caller identity                                                          | Notes                                                                      |
+| ------------- | ---------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| 1 Public      | `/api/v1/public/*` (incl. `reschedule/:token`) | Anonymous (CAPTCHA + rate limit) or single-use token                     | Write-mostly. Returns a reference code, never availability.                |
+| 2 Lawyer      | `/api/v1/lawyer/*`                             | Lawyer session (registration no. + national ID + password, optional OTP) | Sees only own tickets and appointments.                                    |
+| 3 Secretariat | `/api/v1/secretariat/*`                        | Secretariat session, MFA verified                                        | Only tier that can approve, delegate or request documents.                 |
+| 4 Syndic      | `/api/v1/syndic/*`                             | Grand Syndic session, MFA verified                                       | Read-only agenda + emergency reschedule.                                   |
+| — Documents   | `/api/v1/documents/:id/view-url`               | Any staff/lawyer session with access to the parent ticket                | Issues a ≤ 5-minute, session-bound URL; every issue and access is audited. |
 
 ## 3. Trust boundaries
 
@@ -264,3 +264,42 @@ Q-A3 need answers from the Bar. All four are also listed, in Arabic, in
   `SmsProvider` integrate with?
 - **Q-A4 — CAPTCHA.** Is a self-hosted proof-of-work CAPTCHA (no third-party
   requests) acceptable for the public form?
+
+## 9. As built (Phase 2)
+
+What the code does today, where it differs from the design above, and why.
+Details: [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md), [`SECURITY.md`](SECURITY.md),
+[`TESTING.md`](TESTING.md), [`DEPLOYMENT.md`](DEPLOYMENT.md).
+
+**Request path.** Browser → web server (`next start`) → API → PostgreSQL. The web
+server forwards `/api/v1/*` to the API (`apps/web/src/proxy.ts`), so the browser
+sees one origin: session cookies are first-party and the CSP keeps
+`connect-src 'self'`. The API port is never exposed.
+
+**API modules** (`apps/api/src`): `auth` (sessions, TOTP, guard), `tickets`
+(intake, queue, Secretariat decisions), `agenda` (calendar, own entries,
+transfers, live tracking, emergency postponement, reschedule links), `units`
+(branch/committee inbox), `admin` (accounts and roles), `oversight` (audit trail,
+chain verification, summary figures), `reference` (rooms, routing targets),
+`notifications` (transactional outbox), `meetings` (Jitsi link provider),
+`idempotency`, `audit`, `common` (request context, errors, validation).
+
+**Web data layer** (`apps/web/src/data`): one `Workspace` interface with two
+implementations — the API, and the browser-only demo store used by the static
+GitHub Pages preview — so the preview exercises the same screens and rules.
+
+| Design (sections above)                                  | As built                                                                                                                                                                        |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Emergency reschedule runs as a BullMQ job, returns `202` | Runs in **one transaction** in the API and returns `200` with the count. The volume (one day's audiences) is small; atomicity is simpler to reason about. Revisit with workers. |
+| Notifications delivered by workers                       | Outbox rows are written (rendered, deduplicated) and stay `QUEUED`. **No SMS or e-mail is sent yet.**                                                                           |
+| Documents: encrypted upload, scan, 5-minute view URLs    | **Not implemented.** No upload is offered in the UI; the Secretariat requests documents by message.                                                                             |
+| Reschedule link `GET /reschedule/:token`                 | Page `/reschedule#<token>` (token in the fragment, never logged) posts to `POST /api/v1/public/reschedule/:token`; single use.                                                  |
+| CAPTCHA on public forms                                  | **Not implemented** (Q-A4); per-IP rate limit only.                                                                                                                             |
+| Redis-backed rate limits                                 | In-memory per API process.                                                                                                                                                      |
+| Staff UIs on a separate network                          | Same web app for every tier; network placement is a deployment decision (Q-A1).                                                                                                 |
+| Administration UI                                        | API only (`/api/v1/admin/*`) and the `admin:create` bootstrap CLI. **No screen yet.**                                                                                           |
+
+Roadmap status: phases 0–1 done; Phase 2 (core API) and the Phase 4 screens for
+the Secretariat, Grand Syndic, council members, branches, lawyers and the public
+are done and tested end to end. Phase 3 (documents, notification workers, Jitsi
+JWT rooms, reports/export) has not started.

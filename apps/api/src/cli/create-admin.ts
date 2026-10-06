@@ -3,7 +3,7 @@
  * run once any active administrator exists — after that, accounts are managed
  * through the API by administrators.
  *
- *   pnpm --filter @sba/api admin:create -- --email admin@example.org --name "Full Name" \
+ *   pnpm --filter @sba/api admin:create --email admin@example.org --name "Full Name" \
  *     --password-file /run/secrets/initial-admin-password
  *
  * Without --password-file the password is read from standard input (piped).
@@ -28,6 +28,8 @@ async function readStdin(): Promise<string> {
 
 async function main(): Promise<void> {
   const { values } = parseArgs({
+    // `pnpm run x -- …` passes the separator through; ignore it.
+    args: process.argv.slice(2).filter((arg) => arg !== '--'),
     options: {
       email: { type: 'string' },
       name: { type: 'string' },
