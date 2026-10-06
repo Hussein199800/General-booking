@@ -80,7 +80,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
           scope,
           userId,
           key,
-          requestHash: new Uint8Array(requestHash),
+          requestHash: Uint8Array.from(requestHash),
           expiresAt: new Date(Date.now() + RETENTION_MS),
         },
         select: { id: true },

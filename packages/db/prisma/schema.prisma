@@ -643,6 +643,8 @@ model User {
   mfaTotpSecretEnc        Bytes?                 @map("mfa_totp_secret_enc")
   mfaKeyId                String?                @map("mfa_key_id")
   mfaEnabledAt            DateTime?              @map("mfa_enabled_at") @db.Timestamptz(6)
+  /// Last accepted TOTP time step (replay protection).
+  mfaLastStep             BigInt?                @map("mfa_last_step")
   failedLoginCount        Int                    @default(0) @map("failed_login_count")
   lockedUntil             DateTime?              @map("locked_until") @db.Timestamptz(6)
   lastLoginAt             DateTime?              @map("last_login_at") @db.Timestamptz(6)

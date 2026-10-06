@@ -52,6 +52,12 @@ export const envSchema = z
     LOGIN_LOCK_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
     /** Cookies are Secure unless explicitly disabled (development over plain http only). */
     COOKIE_SECURE: flag,
+    /** Per-IP request budget across the API. */
+    RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(10).default(300),
+    /** Per-IP budget for sign-in, MFA and password endpoints. */
+    AUTH_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).default(10),
+    /** Per-IP budget for anonymous public submissions. */
+    PUBLIC_SUBMIT_RATE_LIMIT_PER_HOUR: z.coerce.number().int().min(1).default(5),
     TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(1),
     /** Base URL of the web app, used in links sent to people (e.g. reschedule links). */
     PUBLIC_BASE_URL: z.url().default('http://localhost:3000'),

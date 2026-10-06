@@ -33,7 +33,7 @@ jobs:
           NEXT_TELEMETRY_DISABLED: '1'
 
   database:
-    name: Migrations, drift, constraints, seed
+    name: Database and API end-to-end
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -71,6 +71,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -q -f packages/db/tests/constraints.checks.sql
       - name: Integration tests (state machines, privileges, seed)
         run: pnpm db:test
+      - name: API end-to-end tests (own database, API connected as sba_app)
+        run: pnpm --filter @sba/api test:e2e
+        env:
+          TEST_DATABASE_ADMIN_URL: postgresql://postgres:postgres@localhost:5432/postgres
       - name: CLI seed with demo data is idempotent
         env:
           SEED_DEMO_DATA: 'true'

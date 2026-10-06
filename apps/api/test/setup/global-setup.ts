@@ -79,6 +79,10 @@ export default async function setup(project: TestProject): Promise<() => Promise
     COOKIE_SECURE: 'false',
     PUBLIC_BASE_URL: 'http://localhost:3000',
     JITSI_PUBLIC_URL: 'https://meet.example.test',
+    // Tests sign in many times from one IP; dedicated tests lower these again.
+    RATE_LIMIT_PER_MINUTE: '100000',
+    AUTH_RATE_LIMIT_PER_MINUTE: '100000',
+    PUBLIC_SUBMIT_RATE_LIMIT_PER_HOUR: '100000',
   });
 
   return async () => {

@@ -76,6 +76,16 @@ export default tseslint.config(
     },
   },
   {
+    // End-to-end tests read untyped HTTP response bodies and assert on fixtures.
+    files: ['apps/*/test/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-non-null-assertion': 'off',
+    },
+  },
+  {
     files: ['apps/web/**/*.{ts,tsx}'],
     plugins: { '@next/next': nextPlugin },
     settings: { next: { rootDir: 'apps/web' } },
