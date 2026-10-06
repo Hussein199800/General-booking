@@ -29,7 +29,7 @@ import { PreviewBanner } from '@/components/PreviewBanner';
 import { Seal } from '@/components/Seal';
 import { useNow } from '@/components/useNow';
 import { councilMembers, damascusIsoDate, type DemoAppointment } from '@/demo/data';
-import { demoActions, useDemoState } from '@/demo/store';
+import { demoActions, pendingTransfers, useDemoState } from '@/demo/store';
 import { formatDate, formatNumber, t } from '@/i18n';
 
 type Tab = 'today' | 'calendar';
@@ -69,6 +69,7 @@ export function SyndicAgenda() {
   const todays = mine.filter((x) => damascusIsoDate(x.startsAt) === today);
   const scheduledToday = todays.filter((x) => x.status === 'SCHEDULED');
   const next = now ? nextAppointment(todays, now) : undefined;
+  const pendingIds = new Set(state ? pendingTransfers(state).map((x) => x.id) : []);
   const selectedDay = selected ?? today;
   const dayEntries = mine.filter((x) => damascusIsoDate(x.startsAt) === selectedDay);
 
@@ -102,9 +103,14 @@ export function SyndicAgenda() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const memberId = text(form, 'member');
-    const result = demoActions.transfer(appointment.id, memberId, text(form, 'note'));
-    if (result.ok) done(t('syndic.transferDone', { name: memberName(memberId) }));
-    else setError(t('syndic.memberBusy'));
+    const keepTime = text(form, 'when') !== 'NEW';
+    const result = demoActions.transfer(appointment.id, memberId, text(form, 'note'), keepTime);
+    if (!result.ok) {
+      setError(t('syndic.memberBusy'));
+      return;
+    }
+    const name = memberName(memberId);
+    done(keepTime ? t('syndic.transferDone', { name }) : t('syndic.transferDonePending', { name }));
   }
 
   function submitAsk(event: SubmitEvent<HTMLFormElement>) {
@@ -254,6 +260,7 @@ export function SyndicAgenda() {
               setDialog({ kind: 'doc', name });
             }}
             actions={transferAction}
+            pendingTransferIds={pendingIds}
           />
         </div>
       )}
@@ -280,6 +287,7 @@ export function SyndicAgenda() {
                 setDialog({ kind: 'doc', name });
               }}
               actions={transferAction}
+              pendingTransferIds={pendingIds}
             />
           </div>
         </div>
@@ -395,6 +403,32 @@ export function SyndicAgenda() {
                 ))}
               </select>
             </div>
+            <fieldset className="grid gap-2">
+              <legend className="field-label">{t('syndic.transferWhen')}</legend>
+              {(
+                [
+                  ['SAME', t('syndic.transferKeep'), t('syndic.transferKeepHint')],
+                  ['NEW', t('syndic.transferNewTime'), t('syndic.transferNewTimeHint')],
+                ] as const
+              ).map(([value, label, hint]) => (
+                <label
+                  key={value}
+                  className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3 has-[:checked]:border-navy-700 has-[:checked]:bg-navy-50"
+                >
+                  <input
+                    type="radio"
+                    name="when"
+                    value={value}
+                    defaultChecked={value === 'SAME'}
+                    className="mt-1 size-4 accent-navy-800"
+                  />
+                  <span>
+                    <span className="block font-bold">{label}</span>
+                    <span className="block text-sm text-ink-muted">{hint}</span>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
             <div>
               <label htmlFor="note" className="field-label">
                 {t('syndic.transferNote')}

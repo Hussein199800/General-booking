@@ -307,7 +307,8 @@ SELECT pg_temp.expect_ok($$
     '00000000-0000-0000-0000-0000000000d3', '00000000-0000-0000-0000-0000000000a1',
     '2026-10-08 10:00+03', '2026-10-08 10:30+03', 'IN_PERSON',
     '00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000a2');
-  UPDATE appointments SET status = 'TRANSFERRED' WHERE id = '00000000-0000-0000-0000-000000000106';
+  UPDATE appointments SET status = 'TRANSFERRED', transferred_to_user_id = '00000000-0000-0000-0000-0000000000a4'
+  WHERE id = '00000000-0000-0000-0000-000000000106';
   INSERT INTO appointments (id, ticket_id, transferred_from_id, transfer_note, agenda_day_id,
     principal_user_id, starts_at, ends_at, meeting_mode, room_id, scheduled_by_user_id)
   VALUES ('00000000-0000-0000-0000-000000000107', '00000000-0000-0000-0000-0000000000e5',
@@ -337,6 +338,55 @@ SELECT pg_temp.expect_ok($$
     ended_at = '2026-10-08 10:28+03'
   WHERE id = '00000000-0000-0000-0000-000000000107'
 $$, 'live tracking: arrived, entered, left');
+
+
+-- 4c. Transfer with a new time, set later (D21) --------------------------------
+
+SELECT pg_temp.expect_error($$
+  UPDATE appointments SET status = 'TRANSFERRED' WHERE id = '00000000-0000-0000-0000-000000000105'
+$$, '23514', 'transfer without naming the receiving member');
+
+SELECT pg_temp.expect_error($$
+  INSERT INTO appointments (ticket_id, transferred_from_id, agenda_day_id, principal_user_id,
+    starts_at, ends_at, meeting_mode, room_id, scheduled_by_user_id)
+  VALUES ('00000000-0000-0000-0000-0000000000e5', '00000000-0000-0000-0000-000000000106',
+    '00000000-0000-0000-0000-0000000000d4', '00000000-0000-0000-0000-0000000000a4',
+    '2026-10-08 12:00+03', '2026-10-08 12:30+03', 'IN_PERSON',
+    '00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000a2')
+$$, '23505', 'a second continuation of the same transfer');
+
+INSERT INTO tickets (id, reference_code, kind, priority, submission_channel) VALUES
+  ('00000000-0000-0000-0000-0000000000e6', 'REQ-6', 'AUDIENCE_REQUEST', 'STANDARD', 'PUBLIC_PORTAL');
+UPDATE tickets SET status = 'APPROVED' WHERE id = '00000000-0000-0000-0000-0000000000e6';
+
+SELECT pg_temp.expect_ok($$
+  INSERT INTO appointments (id, ticket_id, agenda_day_id, principal_user_id, starts_at, ends_at,
+    meeting_mode, room_id, scheduled_by_user_id)
+  VALUES ('00000000-0000-0000-0000-000000000108', '00000000-0000-0000-0000-0000000000e6',
+    '00000000-0000-0000-0000-0000000000d3', '00000000-0000-0000-0000-0000000000a1',
+    '2026-10-08 11:00+03', '2026-10-08 11:30+03', 'IN_PERSON',
+    '00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000a2');
+  UPDATE appointments SET status = 'TRANSFERRED', transferred_to_user_id = '00000000-0000-0000-0000-0000000000a4'
+  WHERE id = '00000000-0000-0000-0000-000000000108'
+$$, 'transfer to a member with the new time left open');
+
+SELECT pg_temp.expect_error($$
+  INSERT INTO appointments (ticket_id, transferred_from_id, agenda_day_id, principal_user_id,
+    starts_at, ends_at, meeting_mode, room_id, scheduled_by_user_id)
+  VALUES ('00000000-0000-0000-0000-0000000000e6', '00000000-0000-0000-0000-000000000108',
+    '00000000-0000-0000-0000-0000000000d3', '00000000-0000-0000-0000-0000000000a1',
+    '2026-10-08 13:00+03', '2026-10-08 13:30+03', 'IN_PERSON',
+    '00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000a2')
+$$, '23514', 'continuation placed back on the Grand Syndic''s agenda');
+
+SELECT pg_temp.expect_ok($$
+  INSERT INTO appointments (ticket_id, transferred_from_id, agenda_day_id, principal_user_id,
+    starts_at, ends_at, meeting_mode, room_id, scheduled_by_user_id)
+  VALUES ('00000000-0000-0000-0000-0000000000e6', '00000000-0000-0000-0000-000000000108',
+    '00000000-0000-0000-0000-0000000000d4', '00000000-0000-0000-0000-0000000000a4',
+    '2026-10-08 13:00+03', '2026-10-08 13:30+03', 'IN_PERSON',
+    '00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000a4')
+$$, 'member sets the new time for the transferred audience');
 
 
 -- 5. Identity, tokens -----------------------------------------------------------

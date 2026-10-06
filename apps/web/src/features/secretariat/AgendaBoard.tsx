@@ -7,11 +7,12 @@ import { useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { DayList } from '@/components/agenda/DayList';
 import { LiveBoard } from '@/components/agenda/LiveBoard';
+import { PendingTransfers } from '@/components/agenda/PendingTransfers';
 import { MonthCalendar } from '@/components/agenda/MonthCalendar';
 import { PreviewBanner } from '@/components/PreviewBanner';
 import { useNow } from '@/components/useNow';
 import { damascusIsoDate } from '@/demo/data';
-import { useDemoState } from '@/demo/store';
+import { pendingTransfers, useDemoState } from '@/demo/store';
 import { formatDate, t } from '@/i18n';
 
 import { secretariatNav } from './nav';
@@ -26,6 +27,7 @@ export function AgendaBoard() {
   const now = useNow();
   const [month, setMonth] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const today = now ? damascusIsoDate(now) : '';
   const mine = (state?.appointments ?? [])
@@ -58,7 +60,18 @@ export function AgendaBoard() {
 
         {state && now && (
           <>
+            {notice && (
+              <p role="status" className="rounded-2xl bg-navy-900 p-4 text-sm text-white">
+                {notice} {t('preview.actionNotSaved')}
+              </p>
+            )}
             <LiveBoard appointments={todays} now={now} viewer="SECRETARIAT" controls />
+            <PendingTransfers
+              items={pendingTransfers(state)}
+              now={now}
+              showMember
+              onScheduled={setNotice}
+            />
             <div className="grid gap-5">
               <MonthCalendar
                 month={month ?? `${today.slice(0, 7)}-01`}

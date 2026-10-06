@@ -8,6 +8,7 @@ import {
   ScrollText,
   ShieldCheck,
   UserRound,
+  UserRoundCheck,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -26,6 +27,12 @@ const previews = [
     icon: CalendarClock,
     title: t('home.previewLinks.syndic'),
     description: t('home.previewLinks.syndicDesc'),
+  },
+  {
+    href: '/member',
+    icon: UserRoundCheck,
+    title: t('home.previewLinks.member'),
+    description: t('home.previewLinks.memberDesc'),
   },
   {
     href: '/login',
@@ -101,7 +108,7 @@ export default function HomePage() {
           </div>
           <p className="mt-1 text-sm text-ink-muted">{t('home.previewIntro')}</p>
         </div>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2">
           {previews.map((item) => (
             <Link
               key={item.href}

@@ -83,7 +83,7 @@ describe('seed', () => {
     expect(summary).toEqual({
       organizationalUnits: 17,
       externalEntities: 2,
-      templatesCreated: 18,
+      templatesCreated: 20,
       templatesSuperseded: 0,
       demoUsersCreated: 10,
     });

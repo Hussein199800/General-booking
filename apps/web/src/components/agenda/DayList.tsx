@@ -23,6 +23,8 @@ interface DayListProps {
   readonly highlightId?: string | undefined;
   readonly onOpenDocument?: (name: string) => void;
   readonly actions?: (appointment: DemoAppointment) => ReactNode;
+  /** TRANSFERRED audiences whose new time has not been set yet (D21). */
+  readonly pendingTransferIds?: ReadonlySet<string>;
 }
 
 /** One day's entries in time order, with live state and optional per-entry actions. */
@@ -32,6 +34,7 @@ export function DayList({
   highlightId,
   onOpenDocument,
   actions,
+  pendingTransferIds,
 }: DayListProps) {
   if (appointments.length === 0) {
     return <p className="card p-6 text-center text-ink-muted">{t('agenda.noEntries')}</p>;
@@ -82,6 +85,11 @@ export function DayList({
                 {item.status === 'TRANSFERRED' && (
                   <p className="mt-1 text-sm font-bold text-tier-internal">
                     {t('agenda.transferredTo', { name: memberName(item.transferredTo) })}
+                    {pendingTransferIds?.has(item.id) && (
+                      <span className="ms-2 badge bg-gold-100 text-gold-700">
+                        {t('agenda.awaitingTime')}
+                      </span>
+                    )}
                   </p>
                 )}
                 {!masked && locationText(item) && (

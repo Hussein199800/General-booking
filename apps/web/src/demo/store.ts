@@ -22,7 +22,7 @@ export interface DemoState {
   readonly appointments: DemoAppointment[];
 }
 
-const STORAGE_KEY = 'sba-demo-v2';
+const STORAGE_KEY = 'sba-demo-v3';
 const listeners = new Set<() => void>();
 let state: DemoState | null = null;
 
@@ -98,6 +98,20 @@ export function hasConflict(
       other.principal === principal &&
       other.status === 'SCHEDULED' &&
       overlaps(slot, other),
+  );
+}
+
+/** A TRANSFERRED audience whose continuation has not been scheduled yet (D21). */
+export function isPendingTransfer(s: DemoState, appointment: DemoAppointment): boolean {
+  return (
+    appointment.status === 'TRANSFERRED' &&
+    !s.appointments.some((x) => x.transferredFromId === appointment.id)
+  );
+}
+
+export function pendingTransfers(s: DemoState, memberId?: string): DemoAppointment[] {
+  return s.appointments.filter(
+    (x) => isPendingTransfer(s, x) && (memberId === undefined || x.transferredTo === memberId),
   );
 }
 
@@ -202,35 +216,85 @@ export const demoActions = {
     return { ok: true };
   },
 
-  /** Hand a scheduled audience to a council member, same time (decision D19). */
-  transfer(appointmentId: string, memberId: string, note: string): ActionResult {
+  /**
+   * Hand a scheduled audience to a council member (decisions D19, D21). With
+   * `keepTime` the member's appointment is created at the same time; otherwise
+   * the original is marked TRANSFERRED and waits for the member or the
+   * Secretariat to set a new time (scheduleTransfer).
+   */
+  transfer(appointmentId: string, memberId: string, note: string, keepTime: boolean): ActionResult {
     const s = current();
     const original = s.appointments.find((x) => x.id === appointmentId);
-    if (!original || original.origin !== 'SECRETARIAT')
+    if (!original || original.origin !== 'SECRETARIAT') {
       return { ok: false, reason: 'ILLEGAL_TRANSITION' };
+    }
     if (!canTransitionAppointment(original.status, 'TRANSFERRED')) {
       return { ok: false, reason: 'ILLEGAL_TRANSITION' };
     }
-    if (hasConflict(memberId, original)) return { ok: false, reason: 'CONFLICT' };
+    if (keepTime && hasConflict(memberId, original)) return { ok: false, reason: 'CONFLICT' };
+    const transferred = s.appointments.map((x) =>
+      x.id === appointmentId
+        ? {
+            ...x,
+            status: 'TRANSFERRED' as const,
+            transferredTo: memberId,
+            transferNote: note || null,
+          }
+        : x,
+    );
+    commit({
+      ...s,
+      appointments: keepTime
+        ? [
+            ...transferred,
+            {
+              ...original,
+              id: newId('trf'),
+              principal: memberId,
+              transferredFromId: original.id,
+              transferNote: note || null,
+              arrivedAt: null,
+              startedAt: null,
+              endedAt: null,
+            },
+          ]
+        : transferred,
+    });
+    return { ok: true };
+  },
+
+  /** The member or the Secretariat sets the new time of a pending transfer (D21). */
+  scheduleTransfer(
+    originalId: string,
+    booking: {
+      startsAt: Date;
+      endsAt: Date;
+      mode: DemoAppointment['mode'];
+      room: DemoAppointment['room'];
+    },
+  ): ActionResult {
+    const s = current();
+    const original = s.appointments.find((x) => x.id === originalId);
+    if (!original?.transferredTo || !isPendingTransfer(s, original)) {
+      return { ok: false, reason: 'ILLEGAL_TRANSITION' };
+    }
+    if (hasConflict(original.transferredTo, booking)) return { ok: false, reason: 'CONFLICT' };
     commit({
       ...s,
       appointments: [
-        ...s.appointments.map((x) =>
-          x.id === appointmentId
-            ? {
-                ...x,
-                status: 'TRANSFERRED' as const,
-                transferredTo: memberId,
-                transferNote: note || null,
-              }
-            : x,
-        ),
+        ...s.appointments,
         {
           ...original,
+          ...booking,
           id: newId('trf'),
-          principal: memberId,
+          status: 'SCHEDULED',
+          principal: original.transferredTo,
           transferredFromId: original.id,
-          transferNote: note || null,
+          transferredTo: null,
+          locationNote: null,
+          arrivedAt: null,
+          startedAt: null,
+          endedAt: null,
         },
       ],
     });

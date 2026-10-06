@@ -122,7 +122,11 @@ model Appointment {
   /// Private principal entries are shown to the Secretariat only as reserved time.
   isPrivate           Boolean                   @default(false) @map("is_private")
   locationNote        String?                   @map("location_note")
-  transferredFromId   String?                   @map("transferred_from_id") @db.Uuid
+  /// PARTIAL UNIQUE: unique only among rows matching the index predicate.
+  /// Never use it in findUnique / upsert / connect — query with findFirst + the predicate.
+  transferredFromId   String?                   @unique(map: "appointments_one_continuation_per_transfer", where: raw("(transferred_from_id IS NOT NULL)")) @map("transferred_from_id") @db.Uuid
+  /// Council member who receives a TRANSFERRED audience (set iff status = TRANSFERRED).
+  transferredToUserId String?                   @map("transferred_to_user_id") @db.Uuid
   transferNote        String?                   @map("transfer_note")
   arrivedAt           DateTime?                 @map("arrived_at") @db.Timestamptz(6)
   startedAt           DateTime?                 @map("started_at") @db.Timestamptz(6)
@@ -141,12 +145,13 @@ model Appointment {
   scheduledByUser     User                      @relation("AppointmentsScheduledByUserId", fields: [scheduledByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   ticket              Ticket?                   @relation(fields: [ticketId, ticketKind], references: [id, kind], onDelete: NoAction, onUpdate: NoAction)
   transferredFrom     Appointment?              @relation("AppointmentTransfer", fields: [transferredFromId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  transferredTo       Appointment[]             @relation("AppointmentTransfer")
+  transferredTo       Appointment?              @relation("AppointmentTransfer")
+  transferredToUser   User?                     @relation("AppointmentTransferTarget", fields: [transferredToUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   notifications       Notification[]
 
   @@index([agendaDayId, startsAt], map: "appointments_agenda_idx")
   @@index([ticketId], map: "appointments_ticket_idx")
-  @@index([transferredFromId], map: "appointments_transferred_from_idx", where: raw("(transferred_from_id IS NOT NULL)"))
+  @@index([transferredToUserId], map: "appointments_transfer_target_idx", where: raw("(status = 'TRANSFERRED'::appointment_status)"))
   @@map("appointments")
 }
 
@@ -629,41 +634,42 @@ model UserRoleGrant {
 
 /// Table `users`. CHECK/EXCLUDE constraints and triggers: see the SQL migrations.
 model User {
-  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  fullName              String                 @map("full_name")
-  email                 String?                @unique @db.Citext
-  phoneE164             String?                @unique @map("phone_e164")
-  passwordHash          String                 @map("password_hash")
-  status                UserStatus             @default(PENDING_ACTIVATION)
-  mfaTotpSecretEnc      Bytes?                 @map("mfa_totp_secret_enc")
-  mfaKeyId              String?                @map("mfa_key_id")
-  mfaEnabledAt          DateTime?              @map("mfa_enabled_at") @db.Timestamptz(6)
-  failedLoginCount      Int                    @default(0) @map("failed_login_count")
-  lockedUntil           DateTime?              @map("locked_until") @db.Timestamptz(6)
-  lastLoginAt           DateTime?              @map("last_login_at") @db.Timestamptz(6)
-  passwordChangedAt     DateTime               @default(now()) @map("password_changed_at") @db.Timestamptz(6)
-  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime               @default(now()) @map("updated_at") @db.Timestamptz(6)
-  agendaDays            AgendaDay[]
-  attendees             AppointmentAttendee[]
-  principalAppointments Appointment[]          @relation("AppointmentsPrincipalUserId")
-  scheduledAppointments Appointment[]          @relation("AppointmentsScheduledByUserId")
-  auditLogs             AuditLog[]
-  documentAccessTokens  DocumentAccessToken[]
-  documentRequests      DocumentRequest[]
-  deletedDocuments      Document[]             @relation("DocumentsDeletedByUserId")
-  uploadedDocuments     Document[]             @relation("DocumentsUploadedByUserId")
-  emergencyOverrides    EmergencyOverride[]
-  idempotencyKeys       IdempotencyKey[]
-  lawyerProfile         LawyerProfile?
-  notificationTemplates NotificationTemplate[]
-  notifications         Notification[]
-  routingAssignments    RoutingAssignment[]
-  sessions              Session[]
-  assignedTickets       Ticket[]               @relation("TicketsAssignedOfficerId")
-  submittedTickets      Ticket[]               @relation("TicketsSubmittedByUserId")
-  grantedRoles          UserRoleGrant[]        @relation("UserRolesGrantedByUserId")
-  roles                 UserRoleGrant[]        @relation("UserRolesUserId")
+  id                      String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fullName                String                 @map("full_name")
+  email                   String?                @unique @db.Citext
+  phoneE164               String?                @unique @map("phone_e164")
+  passwordHash            String                 @map("password_hash")
+  status                  UserStatus             @default(PENDING_ACTIVATION)
+  mfaTotpSecretEnc        Bytes?                 @map("mfa_totp_secret_enc")
+  mfaKeyId                String?                @map("mfa_key_id")
+  mfaEnabledAt            DateTime?              @map("mfa_enabled_at") @db.Timestamptz(6)
+  failedLoginCount        Int                    @default(0) @map("failed_login_count")
+  lockedUntil             DateTime?              @map("locked_until") @db.Timestamptz(6)
+  lastLoginAt             DateTime?              @map("last_login_at") @db.Timestamptz(6)
+  passwordChangedAt       DateTime               @default(now()) @map("password_changed_at") @db.Timestamptz(6)
+  createdAt               DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime               @default(now()) @map("updated_at") @db.Timestamptz(6)
+  agendaDays              AgendaDay[]
+  attendees               AppointmentAttendee[]
+  principalAppointments   Appointment[]          @relation("AppointmentsPrincipalUserId")
+  scheduledAppointments   Appointment[]          @relation("AppointmentsScheduledByUserId")
+  transferredAppointments Appointment[]          @relation("AppointmentTransferTarget")
+  auditLogs               AuditLog[]
+  documentAccessTokens    DocumentAccessToken[]
+  documentRequests        DocumentRequest[]
+  deletedDocuments        Document[]             @relation("DocumentsDeletedByUserId")
+  uploadedDocuments       Document[]             @relation("DocumentsUploadedByUserId")
+  emergencyOverrides      EmergencyOverride[]
+  idempotencyKeys         IdempotencyKey[]
+  lawyerProfile           LawyerProfile?
+  notificationTemplates   NotificationTemplate[]
+  notifications           Notification[]
+  routingAssignments      RoutingAssignment[]
+  sessions                Session[]
+  assignedTickets         Ticket[]               @relation("TicketsAssignedOfficerId")
+  submittedTickets        Ticket[]               @relation("TicketsSubmittedByUserId")
+  grantedRoles            UserRoleGrant[]        @relation("UserRolesGrantedByUserId")
+  roles                   UserRoleGrant[]        @relation("UserRolesUserId")
 
   @@map("users")
 }

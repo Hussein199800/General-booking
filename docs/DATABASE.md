@@ -290,6 +290,17 @@ waiting / next" board. _Effect:_ `arrived_at`, `started_at`, `ended_at` recorded
 the Secretariat, ordered by a `CHECK`. The status stays `SCHEDULED` until
 `COMPLETED`, so double-booking protection is untouched.
 
+**D21 — Transfer timing (approved 2026-10-07).** _Cause:_ the owner decided that a
+transferred audience either keeps its time or gets a new one set by the member or
+the Secretariat. _Effect:_ the original row records `transferred_to_user_id` (present
+if and only if the status is `TRANSFERRED`). With "same time", the continuation row
+on the member's agenda is created at once; with "new time", none exists until the
+member or the Secretariat schedules it. A trigger ensures a continuation sits on the
+chosen member's agenda and keeps the same audience request; a partial unique index
+allows one continuation per transfer. The visitor receives
+`APPOINTMENT_TRANSFERRED` (same time) or `APPOINTMENT_TRANSFERRED_NEW_TIME`, then the
+usual confirmation once the new time is set.
+
 ## 5. Indexing summary
 
 | Purpose             | Index                                                                                             |
