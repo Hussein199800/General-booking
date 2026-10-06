@@ -1,0 +1,45 @@
+@import 'tailwindcss';
+
+/*
+ * Visual identity: deep navy with gold accents, high contrast (WCAG AA).
+ * Layout must use logical utilities only (ms-/me-/ps-/pe-/start-/end-/text-start),
+ * never physical left/right — enforced by ESLint.
+ */
+@theme {
+  --font-sans: Calibri, -apple-system, 'SF Arabic', 'SF Pro', system-ui, sans-serif;
+
+  --color-navy-950: #071226;
+  --color-navy-900: #0b1b3a;
+  --color-navy-800: #12285a;
+  --color-navy-700: #1b3a7a;
+  --color-navy-100: #e6ebf5;
+
+  --color-gold-600: #a8832d;
+  --color-gold-500: #c9a54a;
+  --color-gold-300: #e6cf8f;
+  --color-gold-50: #fbf7ec;
+
+  --color-parchment: #fdfcf8;
+
+  /* Secretariat queue tiers. */
+  --color-tier-critical: #b42318;
+  --color-tier-internal: #1d4ed8;
+  --color-tier-standard: #15803d;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-parchment);
+    color: var(--color-navy-950);
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-gold-500);
+    outline-offset: 2px;
+  }
+}
