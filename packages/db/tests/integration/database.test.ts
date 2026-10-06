@@ -83,9 +83,9 @@ describe('seed', () => {
     expect(summary).toEqual({
       organizationalUnits: 17,
       externalEntities: 2,
-      templatesCreated: 16,
+      templatesCreated: 18,
       templatesSuperseded: 0,
-      demoUsersCreated: 9,
+      demoUsersCreated: 10,
     });
     expect(await db.organizationalUnit.count({ where: { unitType: 'REGIONAL_BRANCH' } })).toBe(14);
     const grandSyndics = await db.userRoleGrant.count({

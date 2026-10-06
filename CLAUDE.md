@@ -86,9 +86,11 @@ apps/
   web/                 Next.js App Router, Arabic RTL.
     src/proxy.ts       per-request CSP nonce (Next 16 "proxy", formerly middleware)
     src/i18n/          re-exports t() — the only way components get text
-    src/components/    AppShell (sidebar / mobile drawer), Seal, Badges, PreviewBanner
+    src/components/    AppShell (sidebar / mobile drawer), Seal, Badges, Modal, PreviewBanner
+      agenda/          MonthCalendar, LiveBoard, DayList (shared by Syndic and Secretariat)
     src/features/      secretariat/, syndic/ screens (demo data until Phase 4 wires the API)
-    src/demo/          data.json (fictional, Arabic) + typed loader
+    src/demo/          data.json (fictional, Arabic), typed loader, store.ts (localStorage-only
+                       demo store whose actions mirror the DB rules)
     SBA_PREVIEW=1      static export for the GitHub Pages preview (.github/workflows/pages.yml)
 packages/
   shared/              Domain constants, state machines, i18n, shared types. Built to dist/ (ESM).

@@ -254,6 +254,91 @@ SELECT pg_temp.expect_ok($$
   WHERE id = '00000000-0000-0000-0000-000000000101'
 $$, 'cancelling the remaining appointment on a suspended day');
 
+-- 4b. Principal-owned entries, transfers, live tracking (D18–D20) ------------
+
+INSERT INTO agenda_days (id, principal_user_id, agenda_date) VALUES
+  ('00000000-0000-0000-0000-0000000000d3', '00000000-0000-0000-0000-0000000000a1', '2026-10-08'),
+  ('00000000-0000-0000-0000-0000000000d4', '00000000-0000-0000-0000-0000000000a4', '2026-10-08');
+
+SELECT pg_temp.expect_ok($$
+  INSERT INTO appointments (id, origin, title, is_private, agenda_day_id, principal_user_id,
+    starts_at, ends_at, meeting_mode, location_note, scheduled_by_user_id)
+  VALUES ('00000000-0000-0000-0000-000000000105', 'PRINCIPAL', 'x', true,
+    '00000000-0000-0000-0000-0000000000d3', '00000000-0000-0000-0000-0000000000a1',
+    '2026-10-08 16:00+03', '2026-10-08 17:00+03', 'IN_PERSON', 'x',
+    '00000000-0000-0000-0000-0000000000a1')
+$$, 'Grand Syndic enters his own private appointment (no request behind it)');
+
+SELECT pg_temp.expect_error($$
+  INSERT INTO appointments (ticket_id, agenda_day_id, principal_user_id, starts_at, ends_at,
+    meeting_mode, room_id, scheduled_by_user_id)
+  VALUES ('00000000-0000-0000-0000-0000000000e5', '00000000-0000-0000-0000-0000000000d3',
+    '00000000-0000-0000-0000-0000000000a1', '2026-10-08 16:30+03', '2026-10-08 17:00+03',
+    'IN_PERSON', '00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000a2')
+$$, '23P01', 'Secretariat booking over the Grand Syndic''s own entry');
+
+SELECT pg_temp.expect_error($$
+  INSERT INTO appointments (origin, agenda_day_id, principal_user_id, starts_at, ends_at,
+    meeting_mode, location_note, scheduled_by_user_id)
+  VALUES ('PRINCIPAL', '00000000-0000-0000-0000-0000000000d3', '00000000-0000-0000-0000-0000000000a1',
+    '2026-10-08 18:00+03', '2026-10-08 18:30+03', 'IN_PERSON', 'x', '00000000-0000-0000-0000-0000000000a1')
+$$, '23514', 'principal entry without a title');
+
+SELECT pg_temp.expect_error($$
+  INSERT INTO appointments (agenda_day_id, principal_user_id, starts_at, ends_at,
+    meeting_mode, room_id, scheduled_by_user_id)
+  VALUES ('00000000-0000-0000-0000-0000000000d3', '00000000-0000-0000-0000-0000000000a1',
+    '2026-10-08 18:00+03', '2026-10-08 18:30+03', 'IN_PERSON',
+    '00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000a2')
+$$, '23514', 'Secretariat booking without an audience request');
+
+SELECT pg_temp.expect_error($$
+  INSERT INTO appointments (ticket_id, is_private, agenda_day_id, principal_user_id, starts_at, ends_at,
+    meeting_mode, room_id, scheduled_by_user_id)
+  VALUES ('00000000-0000-0000-0000-0000000000e5', true, '00000000-0000-0000-0000-0000000000d3',
+    '00000000-0000-0000-0000-0000000000a1', '2026-10-08 10:00+03', '2026-10-08 10:30+03',
+    'IN_PERSON', '00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000a2')
+$$, '23514', 'a request-based booking marked private');
+
+SELECT pg_temp.expect_ok($$
+  INSERT INTO appointments (id, ticket_id, agenda_day_id, principal_user_id, starts_at, ends_at,
+    meeting_mode, room_id, scheduled_by_user_id)
+  VALUES ('00000000-0000-0000-0000-000000000106', '00000000-0000-0000-0000-0000000000e5',
+    '00000000-0000-0000-0000-0000000000d3', '00000000-0000-0000-0000-0000000000a1',
+    '2026-10-08 10:00+03', '2026-10-08 10:30+03', 'IN_PERSON',
+    '00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000a2');
+  UPDATE appointments SET status = 'TRANSFERRED' WHERE id = '00000000-0000-0000-0000-000000000106';
+  INSERT INTO appointments (id, ticket_id, transferred_from_id, transfer_note, agenda_day_id,
+    principal_user_id, starts_at, ends_at, meeting_mode, room_id, scheduled_by_user_id)
+  VALUES ('00000000-0000-0000-0000-000000000107', '00000000-0000-0000-0000-0000000000e5',
+    '00000000-0000-0000-0000-000000000106', 'x', '00000000-0000-0000-0000-0000000000d4',
+    '00000000-0000-0000-0000-0000000000a4', '2026-10-08 10:00+03', '2026-10-08 10:30+03',
+    'IN_PERSON', '00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000a1')
+$$, 'audience transferred to a council member, same room and time');
+
+SELECT pg_temp.expect_ok($$
+  INSERT INTO appointments (origin, title, agenda_day_id, principal_user_id, starts_at, ends_at,
+    meeting_mode, location_note, scheduled_by_user_id)
+  VALUES ('PRINCIPAL', 'x', '00000000-0000-0000-0000-0000000000d3', '00000000-0000-0000-0000-0000000000a1',
+    '2026-10-08 10:00+03', '2026-10-08 10:30+03', 'IN_PERSON', 'x', '00000000-0000-0000-0000-0000000000a1')
+$$, 'transfer released the Grand Syndic''s slot');
+
+SELECT pg_temp.expect_error($$
+  UPDATE appointments SET ended_at = now() WHERE id = '00000000-0000-0000-0000-000000000107'
+$$, '23514', 'live tracking: meeting ended before it started');
+
+SELECT pg_temp.expect_error($$
+  UPDATE appointments SET arrived_at = '2026-10-08 10:05+03', started_at = '2026-10-08 10:00+03'
+  WHERE id = '00000000-0000-0000-0000-000000000107'
+$$, '23514', 'live tracking: entered the office before arriving');
+
+SELECT pg_temp.expect_ok($$
+  UPDATE appointments SET arrived_at = '2026-10-08 09:55+03', started_at = '2026-10-08 10:02+03',
+    ended_at = '2026-10-08 10:28+03'
+  WHERE id = '00000000-0000-0000-0000-000000000107'
+$$, 'live tracking: arrived, entered, left');
+
+
 -- 5. Identity, tokens -----------------------------------------------------------
 
 SELECT pg_temp.expect_error($$

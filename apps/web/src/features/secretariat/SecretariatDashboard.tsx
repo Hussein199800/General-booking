@@ -8,32 +8,26 @@ import {
   type PriorityTier,
   type RequestStatus,
 } from '@sba/shared';
-import {
-  CalendarCheck,
-  CalendarClock,
-  Clock3,
-  FileQuestion,
-  History,
-  LayoutDashboard,
-  Paperclip,
-  Send,
-  Shuffle,
-  XCircle,
-} from 'lucide-react';
+import { CalendarCheck, Clock3, FileQuestion, Paperclip, Send, XCircle } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type SubmitEvent } from 'react';
 
-import { AppShell, type NavEntry } from '@/components/AppShell';
+import { AppShell } from '@/components/AppShell';
 import { PRIORITY_ACCENT, PRIORITY_BORDER, PriorityBadge, StatusBadge } from '@/components/Badges';
 import { PreviewBanner } from '@/components/PreviewBanner';
-import { demoAgenda, demoTickets, type DemoTicket, type RoomCode } from '@/demo/data';
+import { damascusIsoDate, type DemoTicket, type RoomCode } from '@/demo/data';
+import { demoActions, useDemoState } from '@/demo/store';
+import { useNow } from '@/components/useNow';
+import { secretariatNav } from './nav';
 import { formatDate, formatNumber, formatRelative, t, type MessageKey } from '@/i18n';
 
 type Filter = 'ALL' | PriorityTier;
 type Step = 'detail' | 'approve' | 'delegate' | 'documents' | 'decline';
 
-interface Slot {
+interface Booking {
   readonly startsAt: Date;
   readonly endsAt: Date;
+  readonly mode: MeetingMode;
+  readonly room: RoomCode | null;
 }
 
 const OPEN: readonly RequestStatus[] = ['PENDING_REVIEW', 'AWAITING_DOCUMENTS'];
@@ -45,66 +39,19 @@ const STAT_LABEL = {
   STANDARD: 'secretariat.stats.standard',
 } as const satisfies Record<PriorityTier, MessageKey>;
 
-/** yyyy-mm-dd of the Damascus calendar day (UTC+3). */
-function damascusIsoDate(instant: Date): string {
-  return new Date(instant.getTime() + 3 * 3_600_000).toISOString().slice(0, 10);
-}
-
 function formValue(form: FormData, name: string): string {
   const value = form.get(name);
   return typeof value === 'string' ? value : '';
 }
 
-function overlaps(a: Slot, b: Slot): boolean {
-  return a.startsAt < b.endsAt && b.startsAt < a.endsAt;
-}
-
-const nav: NavEntry[] = [
-  {
-    href: '/secretariat',
-    title: t('secretariat.nav.dashboard'),
-    description: t('secretariat.nav.dashboardDesc'),
-    icon: LayoutDashboard,
-    current: true,
-  },
-  {
-    href: '/syndic',
-    title: t('secretariat.nav.agenda'),
-    description: t('secretariat.nav.agendaDesc'),
-    icon: CalendarClock,
-  },
-  {
-    href: '/secretariat',
-    title: t('secretariat.nav.routing'),
-    description: t('secretariat.nav.routingDesc'),
-    icon: Shuffle,
-    disabled: true,
-  },
-  {
-    href: '/secretariat',
-    title: t('secretariat.nav.audit'),
-    description: t('secretariat.nav.auditDesc'),
-    icon: History,
-    disabled: true,
-  },
-];
-
 export function SecretariatDashboard() {
-  // Demo data is time-relative, so it is created on the client after mount;
-  // building it during static rendering would not match the visitor's clock.
-  const [now, setNow] = useState<Date | null>(null);
-  const [tickets, setTickets] = useState<DemoTicket[]>([]);
-  const [booked, setBooked] = useState<Slot[]>([]);
+  // Shared demo store (this browser only); null until mounted.
+  const state = useDemoState();
+  const now = useNow();
+  const tickets = useMemo(() => state?.tickets ?? [], [state]);
   const [filter, setFilter] = useState<Filter>('ALL');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-
-  useEffect(() => {
-    const current = new Date();
-    setNow(current);
-    setTickets(demoTickets(current));
-    setBooked(demoAgenda(current));
-  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -134,17 +81,24 @@ export function SecretariatDashboard() {
   const awaiting = tickets.filter((x) => x.status === 'AWAITING_DOCUMENTS').length;
   const decided = tickets.filter((x) => !OPEN.includes(x.status)).length;
 
-  function applyDecision(id: string, status: RequestStatus, message: string, slot?: Slot) {
-    setTickets((previous) => previous.map((x) => (x.id === id ? { ...x, status } : x)));
-    if (slot) setBooked((previous) => [...previous, slot]);
+  /** Returns false when the Grand Syndic's time is already taken (EXCLUDE constraint). */
+  function applyDecision(
+    id: string,
+    status: RequestStatus,
+    message: string,
+    booking?: Booking,
+  ): boolean {
+    const result = demoActions.decide(id, status, booking);
+    if (!result.ok) return false;
     setSelectedId(null);
     setToast(`${message} ${t('preview.actionNotSaved')}`);
+    return true;
   }
 
   return (
     <AppShell
       sectionName={t('secretariat.nav.dashboard')}
-      nav={nav}
+      nav={secretariatNav('dashboard')}
       userName={t('secretariat.user')}
       userRole={t('secretariat.role')}
       today={now ? formatDate(now) : ''}
@@ -244,6 +198,11 @@ export function SecretariatDashboard() {
                         {t(`labels.ticketKind.${ticket.kind}`)}
                       </span>
                       <StatusBadge status={ticket.status} />
+                      {ticket.fromPrincipal && (
+                        <span className="badge bg-gold-100 text-gold-700">
+                          {t('secretariat.queue.fromPrincipal')}
+                        </span>
+                      )}
                       <span className="ms-auto font-mono text-xs text-ink-subtle" dir="ltr">
                         {ticket.referenceCode}
                       </span>
@@ -281,7 +240,6 @@ export function SecretariatDashboard() {
         <TicketDialog
           ticket={selected}
           now={now}
-          booked={booked}
           onClose={() => {
             setSelectedId(null);
           }}
@@ -306,12 +264,16 @@ export function SecretariatDashboard() {
 interface TicketDialogProps {
   readonly ticket: DemoTicket;
   readonly now: Date;
-  readonly booked: readonly Slot[];
   readonly onClose: () => void;
-  readonly onDecide: (id: string, status: RequestStatus, message: string, slot?: Slot) => void;
+  readonly onDecide: (
+    id: string,
+    status: RequestStatus,
+    message: string,
+    booking?: Booking,
+  ) => boolean;
 }
 
-function TicketDialog({ ticket, now, booked, onClose, onDecide }: TicketDialogProps) {
+function TicketDialog({ ticket, now, onClose, onDecide }: TicketDialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const [step, setStep] = useState<Step>('detail');
   const [error, setError] = useState<string | null>(null);
@@ -330,13 +292,17 @@ function TicketDialog({ ticket, now, booked, onClose, onDecide }: TicketDialogPr
     const time = formValue(form, 'time');
     const minutes = Number(form.get('duration'));
     const startsAt = new Date(`${date}T${time}:00+03:00`);
-    const slot = { startsAt, endsAt: new Date(startsAt.getTime() + minutes * 60_000) };
-    // Mirrors the database EXCLUDE constraint on the Grand Syndic's time.
-    if (booked.some((other) => overlaps(slot, other))) {
+    const mode: MeetingMode = formValue(form, 'mode') === 'REMOTE' ? 'REMOTE' : 'IN_PERSON';
+    const booking: Booking = {
+      startsAt,
+      endsAt: new Date(startsAt.getTime() + minutes * 60_000),
+      mode,
+      room: mode === 'IN_PERSON' ? (formValue(form, 'room') as RoomCode) : null,
+    };
+    // The store rejects overlaps exactly as the database EXCLUDE constraint does.
+    if (!onDecide(ticket.id, 'APPROVED', t('secretariat.approve.success'), booking)) {
       setError(t('secretariat.approve.conflict'));
-      return;
     }
-    onDecide(ticket.id, 'APPROVED', t('secretariat.approve.success'), slot);
   }
 
   function submitSimple(

@@ -1,5 +1,5 @@
 {
-  "_note": "Fictional demo data for the static preview. Every name is invented.",
+  "_note": "Fictional demo data for the preview. Every name is invented. Today's agenda is placed relative to the visitor's clock so the live board is always populated.",
   "tickets": [
     {
       "id": "t1",
@@ -125,9 +125,9 @@
   "agenda": [
     {
       "id": "a1",
+      "origin": "SECRETARIAT",
       "referenceCode": "REQ-2026-5RDE",
-      "startHour": 10,
-      "startMinute": 0,
+      "minutesFromNow": -95,
       "durationMinutes": 30,
       "name": "م. عمار النوري",
       "capacity": "مدير التحول الرقمي",
@@ -140,24 +140,24 @@
     },
     {
       "id": "a2",
+      "origin": "SECRETARIAT",
       "referenceCode": "REQ-2026-0CFA",
-      "startHour": 11,
-      "startMinute": 0,
+      "minutesFromNow": -15,
       "durationMinutes": 45,
       "name": "أعضاء مجلس فرع اللاذقية",
       "capacity": "مجلس الفرع",
       "organization": "مجلس فرع اللاذقية",
       "priority": "INTERNAL",
-      "mode": "REMOTE",
-      "room": null,
+      "mode": "IN_PERSON",
+      "room": "COUNCIL",
       "attachments": ["جدول أعمال الاجتماع.pdf"],
       "brief": "متابعة أوضاع الفرع ونتائج الانتخابات الداخلية."
     },
     {
       "id": "a3",
+      "origin": "SECRETARIAT",
       "referenceCode": "REQ-2026-JL4M",
-      "startHour": 12,
-      "startMinute": 30,
+      "minutesFromNow": 40,
       "durationMinutes": 30,
       "name": "المحامية سلمى الأحمد",
       "capacity": "محامية مزاولة — فرع ريف دمشق",
@@ -166,13 +166,25 @@
       "mode": "IN_PERSON",
       "room": "MAIN",
       "attachments": [],
-      "brief": "عرض مقترح لتنظيم دورات تدريبية للمحامين المتمرنين."
+      "brief": "عرض مقترح لتنظيم دورات تدريبية للمحامين المتمرنين.",
+      "arrived": true
     },
     {
       "id": "a4",
+      "origin": "PRINCIPAL",
+      "minutesFromNow": 90,
+      "durationMinutes": 60,
+      "title": "اجتماع خاص",
+      "isPrivate": true,
+      "mode": "IN_PERSON",
+      "locationNote": "خارج مبنى النقابة",
+      "brief": ""
+    },
+    {
+      "id": "a5",
+      "origin": "SECRETARIAT",
       "referenceCode": "REQ-2026-QW8P",
-      "startHour": 14,
-      "startMinute": 0,
+      "minutesFromNow": 180,
       "durationMinutes": 60,
       "name": "وفد اتحاد المحامين العرب",
       "capacity": "وفد رسمي",
@@ -182,6 +194,152 @@
       "room": "COUNCIL",
       "attachments": ["برنامج الزيارة.pdf"],
       "brief": "زيارة بروتوكولية وتبادل الخبرات المهنية."
+    },
+    {
+      "id": "b1",
+      "origin": "SECRETARIAT",
+      "referenceCode": "REQ-2026-7NNA",
+      "dayOffset": -2,
+      "hour": 11,
+      "minute": 0,
+      "durationMinutes": 30,
+      "name": "د. ميساء قاسم",
+      "capacity": "باحثة قانونية",
+      "organization": "كلية الحقوق",
+      "priority": "STANDARD",
+      "mode": "REMOTE",
+      "room": null,
+      "attachments": [],
+      "brief": "عرض دراسة حول التعليم القانوني المستمر.",
+      "done": true
+    },
+    {
+      "id": "b2",
+      "origin": "PRINCIPAL",
+      "dayOffset": 1,
+      "hour": 9,
+      "minute": 0,
+      "durationMinutes": 120,
+      "title": "جلسة مجلس النقابة",
+      "isPrivate": false,
+      "mode": "IN_PERSON",
+      "locationNote": "قاعة المجلس",
+      "brief": ""
+    },
+    {
+      "id": "b3",
+      "origin": "SECRETARIAT",
+      "referenceCode": "REQ-2026-HB5T",
+      "dayOffset": 1,
+      "hour": 12,
+      "minute": 30,
+      "durationMinutes": 30,
+      "name": "القاضي وسيم حمدان",
+      "capacity": "رئيس محكمة",
+      "organization": "مجلس القضاء الأعلى",
+      "priority": "CRITICAL",
+      "mode": "IN_PERSON",
+      "room": "MAIN",
+      "attachments": ["كتاب رسمي.pdf"],
+      "brief": "تنسيق بشأن تنظيم دخول المحامين إلى قصر العدل."
+    },
+    {
+      "id": "b4",
+      "origin": "SECRETARIAT",
+      "referenceCode": "REQ-2026-ZK2L",
+      "dayOffset": 2,
+      "hour": 10,
+      "minute": 0,
+      "durationMinutes": 45,
+      "name": "أعضاء مجلس فرع حماة",
+      "capacity": "مجلس الفرع",
+      "organization": "مجلس فرع حماة",
+      "priority": "INTERNAL",
+      "mode": "REMOTE",
+      "room": null,
+      "attachments": [],
+      "brief": "متابعة احتياجات الفرع."
+    },
+    {
+      "id": "b5",
+      "origin": "PRINCIPAL",
+      "dayOffset": 3,
+      "hour": 13,
+      "minute": 0,
+      "durationMinutes": 90,
+      "title": "زيارة رسمية",
+      "isPrivate": true,
+      "mode": "IN_PERSON",
+      "locationNote": "دمشق",
+      "brief": ""
+    },
+    {
+      "id": "b6",
+      "origin": "SECRETARIAT",
+      "referenceCode": "REQ-2026-M4QS",
+      "dayOffset": 5,
+      "hour": 11,
+      "minute": 30,
+      "durationMinutes": 30,
+      "name": "المحامي يزن الخوري",
+      "capacity": "محامٍ مزاول — فرع طرطوس",
+      "organization": "",
+      "priority": "INTERNAL",
+      "mode": "IN_PERSON",
+      "room": "MAIN",
+      "attachments": ["مذكرة.pdf"],
+      "brief": "عرض مقترح حول صندوق التقاعد."
+    },
+    {
+      "id": "b7",
+      "origin": "SECRETARIAT",
+      "referenceCode": "REQ-2026-P0RT",
+      "dayOffset": 8,
+      "hour": 10,
+      "minute": 0,
+      "durationMinutes": 60,
+      "name": "وفد نقابة المهندسين",
+      "capacity": "وفد رسمي",
+      "organization": "",
+      "priority": "STANDARD",
+      "mode": "IN_PERSON",
+      "room": "COUNCIL",
+      "attachments": [],
+      "brief": "تنسيق في مجال التحكيم الهندسي."
+    },
+    {
+      "id": "b8",
+      "origin": "SECRETARIAT",
+      "referenceCode": "REQ-2026-VC9D",
+      "dayOffset": 12,
+      "hour": 12,
+      "minute": 0,
+      "durationMinutes": 30,
+      "name": "م. سامي الحسن",
+      "capacity": "مدير المعلوماتية",
+      "organization": "وزارة العدل",
+      "priority": "CRITICAL",
+      "mode": "REMOTE",
+      "room": null,
+      "attachments": [],
+      "brief": "متابعة مشروع الربط الإلكتروني."
+    }
+  ],
+  "members": [
+    {
+      "id": "m1",
+      "name": "الأستاذ نزار السيد",
+      "capacity": "عضو مجلس النقابة"
+    },
+    {
+      "id": "m2",
+      "name": "الأستاذة رنا حداد",
+      "capacity": "عضو مجلس النقابة"
+    },
+    {
+      "id": "m3",
+      "name": "الأستاذ فراس العلي",
+      "capacity": "عضو مجلس النقابة"
     }
   ]
 }

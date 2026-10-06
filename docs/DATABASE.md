@@ -70,9 +70,9 @@ added, each for a stated reason:
 
 | Enum                      | Values                                                                                                                                                                                                                                                                                             | Notes                                                                                               |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `user_role`               | `SYSTEM_ADMIN`, `AUDITOR`, `GRAND_SYNDIC`, `SECRETARIAT_HEAD`, `SECRETARIAT_OFFICER`, `BRANCH_OFFICER`, `COMMITTEE_MEMBER`, `LAWYER`                                                                                                                                                               | MFA mandatory for all except `LAWYER` (optional OTP). `SYSTEM_ADMIN` has no access to case content. |
+| `user_role`               | `SYSTEM_ADMIN`, `AUDITOR`, `GRAND_SYNDIC`, `SECRETARIAT_HEAD`, `SECRETARIAT_OFFICER`, `COUNCIL_MEMBER`, `BRANCH_OFFICER`, `COMMITTEE_MEMBER`, `LAWYER`                                                                                                                                             | MFA mandatory for all except `LAWYER` (optional OTP). `SYSTEM_ADMIN` has no access to case content. |
 | `request_status`          | `PENDING_REVIEW`, `AWAITING_DOCUMENTS`, `DELEGATED`, `APPROVED`, `DECLINED`, `WITHDRAWN`, `CLOSED`                                                                                                                                                                                                 | `DECLINED` per decision **Q1** (no reason sent).                                                    |
-| `appointment_status`      | `SCHEDULED`, `COMPLETED`, `CANCELLED`, `POSTPONED`, `RESCHEDULED`, `NO_SHOW`                                                                                                                                                                                                                       | Only `SCHEDULED` occupies time.                                                                     |
+| `appointment_status`      | `SCHEDULED`, `COMPLETED`, `CANCELLED`, `POSTPONED`, `RESCHEDULED`, `NO_SHOW`, `TRANSFERRED`                                                                                                                                                                                                        | Only `SCHEDULED` occupies time.                                                                     |
 | `priority_tier`           | `CRITICAL` (red), `INTERNAL` (blue), `STANDARD` (green)                                                                                                                                                                                                                                            |                                                                                                     |
 | `requester_type`          | `CITIZEN`, `LAWYER`, `STATE_INSTITUTION`, `JUDICIAL_AUTHORITY`, `MEDIA`, `DELEGATION`                                                                                                                                                                                                              | Drives the default priority (D15).                                                                  |
 | `meeting_mode`            | `IN_PERSON`, `REMOTE`                                                                                                                                                                                                                                                                              |                                                                                                     |
@@ -80,6 +80,7 @@ added, each for a stated reason:
 | `notification_channel`    | `SMS`, `EMAIL`, `IN_APP`                                                                                                                                                                                                                                                                           |                                                                                                     |
 | `notification_status`     | `QUEUED`, `SENDING`, `SENT`, `DELIVERED`, `FAILED`, `CANCELLED`                                                                                                                                                                                                                                    |                                                                                                     |
 | `document_classification` | `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED`                                                                                                                                                                                                                                                           | Per decision **Q6**.                                                                                |
+| `appointment_origin`      | `SECRETARIAT`, `PRINCIPAL`                                                                                                                                                                                                                                                                         | D18.                                                                                                |
 | Supporting                | `user_status`, `lawyer_practice_status`, `governorate` (14), `org_unit_type`, `external_entity_type`, `ticket_kind`, `submission_channel`, `attendee_role`, `grievance_type`, `routing_status`, `document_request_status`, `scan_status`, `action_token_purpose`, `emergency_action`, `job_status` |                                                                                                     |
 
 PostgreSQL enums are used (rather than lookup tables) because every value here
@@ -263,6 +264,31 @@ so identifiers are not guessable or countable from outside; human-facing
 because the chain needs a strict order. All timestamps are `timestamptz`; every
 mutable table has `created_at` / `updated_at` (maintained by trigger as well as by
 Prisma, so raw SQL fixes stay correct).
+
+**D18 — Appointments are independent of requests (added 2026-10-07).** _Cause:_ the
+Grand Syndic needs to put his own engagements on his agenda so the Secretariat
+never books over them. _Effect:_ `appointments.ticket_id` is nullable and a new
+`origin` column (`SECRETARIAT` | `PRINCIPAL`) says who created the entry. A `CHECK`
+requires a request for Secretariat bookings and forbids one (but requires a
+`title`) for the principal's own entries. Own entries occupy time like any other,
+so the existing `EXCLUDE` constraint rejects any Secretariat booking over them.
+`is_private` (principal entries only) means the Secretariat sees "reserved"
+without details; `location_note` holds a free-text place for entries outside the
+Bar's rooms.
+
+**D19 — Transfer to a council member (added 2026-10-07).** _Cause:_ the Grand Syndic
+may hand an audience to another member of the Bar Council so the visitor is
+received by that member instead. _Effect:_ new role `COUNCIL_MEMBER` (members can
+own an agenda) and appointment status `TRANSFERRED` (`SCHEDULED → TRANSFERRED`). The
+original row becomes `TRANSFERRED`, releasing the Grand Syndic's time; a new row on
+the member's agenda points back through `transferred_from_id` (with
+`transfer_note`). The visitor is notified with the `APPOINTMENT_TRANSFERRED`
+template. Same time and place by default.
+
+**D20 — Live tracking (added 2026-10-07).** _Cause:_ a live "in the office now /
+waiting / next" board. _Effect:_ `arrived_at`, `started_at`, `ended_at` recorded by
+the Secretariat, ordered by a `CHECK`. The status stays `SCHEDULED` until
+`COMPLETED`, so double-booking protection is untouched.
 
 ## 5. Indexing summary
 

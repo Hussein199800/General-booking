@@ -29,6 +29,7 @@ const STAFF: readonly DemoStaff[] = [
   { role: 'GRAND_SYNDIC' },
   { role: 'SECRETARIAT_HEAD' },
   { role: 'SECRETARIAT_OFFICER' },
+  { role: 'COUNCIL_MEMBER' },
   { role: 'BRANCH_OFFICER', scopeCode: branchCode('DAMASCUS') },
   { role: 'COMMITTEE_MEMBER', scopeCode: 'CENTRAL_DISCIPLINARY_COMMITTEE' },
 ];

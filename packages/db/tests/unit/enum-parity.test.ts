@@ -1,4 +1,5 @@
 import {
+  APPOINTMENT_ORIGINS,
   APPOINTMENT_STATUSES,
   GOVERNORATES,
   MEETING_MODES,
@@ -11,6 +12,7 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import {
+  AppointmentOrigin,
   AppointmentStatus,
   Governorate,
   MeetingMode,
@@ -32,6 +34,7 @@ describe('database enums match @sba/shared', () => {
     ['ticket_kind', TicketKind, TICKET_KINDS],
     ['request_status', RequestStatus, REQUEST_STATUSES],
     ['appointment_status', AppointmentStatus, APPOINTMENT_STATUSES],
+    ['appointment_origin', AppointmentOrigin, APPOINTMENT_ORIGINS],
     ['requester_type', RequesterType, REQUESTER_TYPES],
   ] as const)('%s', (_name, dbEnum, shared) => {
     expect(Object.values(dbEnum)).toEqual([...shared]);

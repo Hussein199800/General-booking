@@ -6,6 +6,7 @@ export const USER_ROLES = [
   'GRAND_SYNDIC',
   'SECRETARIAT_HEAD',
   'SECRETARIAT_OFFICER',
+  'COUNCIL_MEMBER',
   'BRANCH_OFFICER',
   'COMMITTEE_MEMBER',
   'LAWYER',
@@ -38,8 +39,13 @@ export const APPOINTMENT_STATUSES = [
   'POSTPONED',
   'RESCHEDULED',
   'NO_SHOW',
+  'TRANSFERRED',
 ] as const;
 export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
+
+/** Who put an entry on an agenda (decision D18). */
+export const APPOINTMENT_ORIGINS = ['SECRETARIAT', 'PRINCIPAL'] as const;
+export type AppointmentOrigin = (typeof APPOINTMENT_ORIGINS)[number];
 
 export const REQUESTER_TYPES = [
   'CITIZEN',
@@ -76,7 +82,8 @@ export const TICKET_TRANSITIONS: Readonly<Record<TicketKind, TransitionMap<Reque
 export const INITIAL_TICKET_STATUS: RequestStatus = 'PENDING_REVIEW';
 
 export const APPOINTMENT_TRANSITIONS: TransitionMap<AppointmentStatus> = {
-  SCHEDULED: ['COMPLETED', 'CANCELLED', 'POSTPONED', 'RESCHEDULED', 'NO_SHOW'],
+  // TRANSFERRED: the Grand Syndic hands the audience to a council member (decision D19).
+  SCHEDULED: ['COMPLETED', 'CANCELLED', 'POSTPONED', 'RESCHEDULED', 'NO_SHOW', 'TRANSFERRED'],
   POSTPONED: ['RESCHEDULED', 'CANCELLED'],
 };
 
