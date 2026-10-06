@@ -17,7 +17,14 @@ const children = [
   }),
   spawn(
     process.execPath,
-    [...(existsSync('.env') ? ['--env-file=.env'] : []), '--watch', 'dist/main.js'],
+    // Root .env first, then an optional apps/api/.env whose values win.
+    [
+      ...['../../.env', '.env']
+        .filter((file) => existsSync(file))
+        .map((file) => `--env-file=${file}`),
+      '--watch',
+      'dist/main.js',
+    ],
     { stdio: 'inherit' },
   ),
 ];

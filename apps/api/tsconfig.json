@@ -3,12 +3,12 @@
   "compilerOptions": {
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "rootDir": "src",
+    "rootDir": ".",
     "outDir": "dist",
     "types": ["node"],
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "declaration": false
   },
-  "include": ["src"]
+  "include": ["src", "test", "vitest.config.ts"]
 }

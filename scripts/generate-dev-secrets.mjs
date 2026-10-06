@@ -14,6 +14,8 @@ const files = {
   'master-keys.json': () =>
     `${JSON.stringify({ 'kek-dev-01': randomBytes(32).toString('base64') }, null, 2)}\n`,
   'pii-hmac-pepper': () => `${randomBytes(32).toString('base64')}\n`,
+  // HS256 key for short-lived access tokens.
+  'jwt-signing-key': () => `${randomBytes(32).toString('base64')}\n`,
 };
 
 for (const [name, generate] of Object.entries(files)) {

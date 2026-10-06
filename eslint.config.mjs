@@ -48,7 +48,7 @@ export default tseslint.config(
             '*.mjs',
             '*.js',
             'apps/*/*.mjs',
-            'apps/*/*.ts',
+            'apps/web/*.ts',
             'apps/*/scripts/*.mjs',
             'scripts/*.mjs',
           ],
