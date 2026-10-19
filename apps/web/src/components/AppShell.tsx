@@ -47,7 +47,7 @@ export function AppShell({ sectionName, nav, userName, userRole, today, children
 
   return (
     <div className="min-h-dvh lg:flex">
-      <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-surface/95 px-4 py-3 backdrop-blur lg:hidden">
+      <header className="glass-light sticky top-0 z-30 flex items-center gap-3 border-x-0 border-t-0 px-4 py-3 lg:hidden">
         <button
           type="button"
           className="grid size-11 place-items-center rounded-xl border border-line bg-surface text-navy-800"
@@ -68,7 +68,7 @@ export function AppShell({ sectionName, nav, userName, userRole, today, children
 
       {open && (
         <div
-          className="fixed inset-0 z-40 bg-navy-950/50 lg:hidden"
+          className="fixed inset-0 z-40 bg-midnight-950/60 backdrop-blur-sm lg:hidden"
           aria-hidden="true"
           onClick={() => {
             setOpen(false);
@@ -78,19 +78,19 @@ export function AppShell({ sectionName, nav, userName, userRole, today, children
 
       <aside
         id="app-sidebar"
-        className={`fixed inset-y-0 start-0 z-50 flex w-72 flex-col gap-5 overflow-y-auto border-e border-line bg-surface p-4 transition-transform duration-200 lg:sticky lg:top-0 lg:h-dvh lg:translate-x-0 ${
+        className={`night nav-dark fixed inset-y-0 start-0 z-50 flex w-72 flex-col gap-5 overflow-y-auto p-4 transition-transform duration-300 lg:sticky lg:top-0 lg:h-dvh lg:translate-x-0 ${
           open ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
-        <div className="flex items-center gap-3 border-b border-line pb-4">
-          <Seal id="sidebar" className="size-12 shrink-0 text-navy-800" />
+        <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+          <Seal id="sidebar" className="size-12 shrink-0 text-gold-300" />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs text-ink-muted">{t('app.institutionName')}</p>
-            <p className="font-bold leading-snug text-ink">{t('app.shortName')}</p>
+            <p className="truncate text-xs text-navy-200">{t('app.institutionName')}</p>
+            <p className="font-bold leading-snug text-white">{t('app.shortName')}</p>
           </div>
           <button
             type="button"
-            className="grid size-10 place-items-center rounded-xl text-ink-muted lg:hidden"
+            className="grid size-10 place-items-center rounded-xl text-navy-100 lg:hidden"
             aria-label={t('nav.closeMenu')}
             onClick={() => {
               setOpen(false);
@@ -100,17 +100,17 @@ export function AppShell({ sectionName, nav, userName, userRole, today, children
           </button>
         </div>
 
-        <dl className="grid gap-2 rounded-2xl border border-line bg-navy-50 p-3 text-sm">
+        <dl className="glass grid gap-2 rounded-2xl p-3 text-sm text-white">
           <div>
-            <dt className="text-ink-subtle">{t('preview.user')}</dt>
+            <dt className="text-navy-200">{t('preview.user')}</dt>
             <dd className="font-bold">{userName}</dd>
           </div>
           <div>
-            <dt className="text-ink-subtle">{t('preview.role')}</dt>
+            <dt className="text-navy-200">{t('preview.role')}</dt>
             <dd className="font-bold">{userRole}</dd>
           </div>
           <div>
-            <dt className="text-ink-subtle">{t('preview.date')}</dt>
+            <dt className="text-navy-200">{t('preview.date')}</dt>
             <dd className="font-bold">{today}</dd>
           </div>
         </dl>
@@ -139,10 +139,7 @@ export function AppShell({ sectionName, nav, userName, userRole, today, children
           ))}
         </nav>
 
-        <Link
-          href={DEMO_MODE ? '/' : '/account'}
-          className="nav-item mt-auto text-sm text-ink-muted"
-        >
+        <Link href={DEMO_MODE ? '/' : '/account'} className="nav-item mt-auto text-sm">
           {DEMO_MODE ? t('nav.backHome') : t('account.title')}
         </Link>
       </aside>

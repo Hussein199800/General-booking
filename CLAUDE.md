@@ -55,7 +55,7 @@ documents encrypted.
 - All user-facing strings live in **`packages/shared/locales/ar.json`** and are read with
   `t('section.key', params)` from `@sba/shared`. **No Arabic literals in source files** —
   ESLint fails the build on any Arabic string, template or JSX text.
-- Typography: `font-family: Calibri, -apple-system, "SF Arabic", "SF Pro", system-ui, sans-serif;`
+- Typography: native system fonts, iPhone first (owner decision): `-apple-system, BlinkMacSystemFont, "SF Arabic", "SF Pro Text", "SF Pro", "Segoe UI", Calibri, "Noto Sans Arabic", Tahoma, system-ui, sans-serif`
   (defined once as `--font-sans` in `apps/web/src/app/globals.css`).
 - RTL: `<html lang="ar" dir="rtl">`; use **logical** properties/utilities only
   (`ms-`/`me-`/`ps-`/`pe-`/`start-`/`end-`/`text-start`/`border-s`). ESLint rejects
@@ -139,9 +139,13 @@ pnpm --filter @sba/db drift                                           # Prisma s
 - **API:** all routes under `/api/v1`. Mutating endpoints require an `Idempotency-Key` header.
 - **IDs:** UUID primary keys; human-facing reference codes are separate columns.
 - **Imports:** ESM with explicit `.js` extensions in `apps/api` and `packages/shared`.
-- **UI design system:** tokens and component classes (`card`, `hero`, `stat-card`, `btn-*`,
-  `input`, `badge`, `nav-item`, `dialog`) live in `apps/web/src/app/globals.css`; reuse
-  them rather than ad-hoc colours. Gold is for accents, never body text on white.
+- **UI design system** ("Seal & Scales", see `docs/ar/DESIGN.md`): tokens and component
+  classes (`card`, `card-link`, `hero`, `night`, `aurora`, `glass`, `stat-card`, `btn-*` incl.
+  `btn-gold`/`btn-glass`, `input`, `chip`, `badge`, `eyebrow`, `display`/`headline`/`lede`,
+  `nav-item`, `dialog`, `reveal` + `<Reveal>`) live in `apps/web/src/app/globals.css`; reuse
+  them rather than ad-hoc colours. Gold is for accents, never body text on white. Motion is
+  transform/opacity only and respects `prefers-reduced-motion`. No inline `style` attributes
+  in server-rendered markup (CSP); use classes. Public pages use `PublicShell`.
   Numbers display in Eastern Arabic digits (`formatNumber`, and `t()` formats numeric params).
 - **Errors to users:** Arabic message from `ar.json` + stable English error code; never
   leak stack traces or internal identifiers.

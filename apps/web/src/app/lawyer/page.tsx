@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import { PreviewBanner } from '@/components/PreviewBanner';
 import { LawyerPortal } from '@/features/lawyer/LawyerPortal';
+import { PublicShell } from '@/components/site/PublicShell';
 import { t } from '@/i18n';
 import { DEMO_MODE } from '@/lib/runtime';
 import { RequireSession } from '@/lib/session';
@@ -11,7 +12,7 @@ export const metadata: Metadata = { title: t('lawyer.portal') };
 
 export default function LawyerPage() {
   return (
-    <main id="main" className="mx-auto grid max-w-3xl gap-4 p-4 sm:p-6">
+    <PublicShell width="max-w-3xl">
       {DEMO_MODE ? (
         <>
           <PreviewBanner />
@@ -25,6 +26,6 @@ export default function LawyerPage() {
           <LawyerPortal />
         </RequireSession>
       )}
-    </main>
+    </PublicShell>
   );
 }

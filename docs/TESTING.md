@@ -23,7 +23,7 @@ Nothing is mocked except outbound delivery, which is not implemented yet.
 database (for example `postgresql://postgres:postgres@localhost:5432/postgres`).
 Each run creates its own database and drops it afterwards.
 
-## 2. Results (run on 2026-10-06, branch `claude/new-session-25ky6n`)
+## 2. Results (run on 2026-10-19, branch `claude/new-session-25ky6n`)
 
 | Suite                   | Result                                          |
 | ----------------------- | ----------------------------------------------- |
@@ -32,7 +32,7 @@ Each run creates its own database and drops it afterwards.
 | Schema drift            | No difference detected                          |
 | DB integration          | 9 passed                                        |
 | API end-to-end          | 33 passed (foundation 3, auth 12, domain 18)    |
-| Browser end-to-end      | 11 passed (9 desktop, 2 phone viewport)         |
+| Browser end-to-end      | 16 passed (12 desktop, 4 phone viewport)        |
 | `pnpm audit --prod`     | No known vulnerabilities found                  |
 | Lint, typecheck, format | Clean                                           |
 
@@ -77,6 +77,14 @@ every push (`.github/workflows/ci.yml`: quality, database + API, browser jobs).
 - A matter delegated to a branch is closed from the branch inbox.
 - A reschedule link works once, removes the token from the address bar, and
   shows no free times (desktop and phone).
+- Public pages (`/`, `/login`, `/request`, `/reschedule`) load with no console
+  errors and no Content-Security-Policy violations, and nothing overflows the
+  screen sideways (desktop and phone).
+- The homepage roles directory: Arabic-aware search (ignores diacritics and
+  alef/yaa/taa-marbuta variants), highlighted hits, empty state, clear button,
+  category filters.
+- FAQ answers open; header links reach their sections; the phone menu opens,
+  navigates and closes.
 
 ## 4. Manual checks performed
 

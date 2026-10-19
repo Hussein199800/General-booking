@@ -98,6 +98,10 @@ export async function apiRequest<T>(
   }
   if (res.ok) return { ok: true, value: body as T };
 
+  // A non-JSON 5xx comes from the proxy in front of the API (API down or unreachable).
+  if (body === null && res.status >= 500) {
+    return { ok: false, code: 'NETWORK', message: t('errors.network'), status: res.status };
+  }
   const envelope = (body ?? {}) as { code?: unknown; message?: unknown; fields?: unknown };
   return {
     ok: false,

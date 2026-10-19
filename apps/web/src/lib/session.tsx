@@ -103,7 +103,22 @@ export function RequireSession({
   }, [router, roleKey, allowWithoutMfa]);
 
   if (state.kind === 'loading') return <Loading />;
-  if (state.kind === 'error') return <FullPageMessage>{state.message}</FullPageMessage>;
+  if (state.kind === 'error') {
+    return (
+      <FullPageMessage>
+        <p role="alert">{state.message}</p>
+        <button
+          type="button"
+          className="btn btn-primary justify-self-center"
+          onClick={() => {
+            window.location.reload();
+          }}
+        >
+          {t('common.retry')}
+        </button>
+      </FullPageMessage>
+    );
+  }
   if (state.kind === 'forbidden') {
     return (
       <FullPageMessage>

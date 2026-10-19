@@ -231,7 +231,7 @@ export function SyndicAgenda() {
         <div className="relative grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <button
             type="button"
-            className="btn bg-gold-500 text-sm text-navy-950 hover:bg-gold-300 sm:text-base"
+            className="btn btn-gold text-sm sm:text-base"
             onClick={() => {
               setDialog({ kind: 'add' });
             }}

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import { PreviewBanner } from '@/components/PreviewBanner';
 import { UnitInbox } from '@/features/units/UnitInbox';
+import { PublicShell } from '@/components/site/PublicShell';
 import { t } from '@/i18n';
 import { DEMO_MODE } from '@/lib/runtime';
 import { RequireSession } from '@/lib/session';
@@ -10,7 +11,7 @@ export const metadata: Metadata = { title: t('units.title') };
 
 export default function UnitsPage() {
   return (
-    <main id="main" className="mx-auto grid max-w-4xl gap-4 p-4 sm:p-6">
+    <PublicShell width="max-w-4xl">
       {DEMO_MODE ? (
         <>
           <PreviewBanner />
@@ -21,6 +22,6 @@ export default function UnitsPage() {
           <UnitInbox />
         </RequireSession>
       )}
-    </main>
+    </PublicShell>
   );
 }
