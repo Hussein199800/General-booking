@@ -1,4 +1,4 @@
-import { CalendarClock, FileLock2, Gavel, LayoutDashboard, Lock, ShieldCheck } from 'lucide-react';
+import { CalendarClock, Gavel, LayoutDashboard, Lock, ScrollText, ShieldCheck } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Suspense } from 'react';
@@ -19,7 +19,7 @@ export const metadata: Metadata = { title: t('login.title') };
  */
 export default function LoginPage() {
   return (
-    <main id="main" className="grid min-h-dvh place-items-center p-4 sm:p-8">
+    <main id="main" className="grid place-items-center p-4 sm:p-8">
       <div className="grid w-full max-w-5xl gap-4">
         {DEMO_MODE && <PreviewBanner />}
         <div className="card grid overflow-hidden p-0 md:grid-cols-2">
@@ -31,9 +31,9 @@ export default function LoginPage() {
             </div>
             <ul className="relative grid gap-3 text-navy-100">
               {[
-                { icon: Gavel, text: t('home.trust.human') },
-                { icon: FileLock2, text: t('home.trust.encrypted') },
-                { icon: ShieldCheck, text: t('home.trust.audit') },
+                { icon: Gavel, text: t('home.guarantees.human.title') },
+                { icon: ShieldCheck, text: t('home.guarantees.access.title') },
+                { icon: ScrollText, text: t('home.guarantees.audit.title') },
               ].map((point) => (
                 <li key={point.text} className="flex items-center gap-3">
                   <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-white/10">

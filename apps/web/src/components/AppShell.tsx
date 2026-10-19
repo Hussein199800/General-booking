@@ -47,10 +47,10 @@ export function AppShell({ sectionName, nav, userName, userRole, today, children
 
   return (
     <div className="min-h-dvh lg:flex">
-      <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-surface/95 px-4 py-3 backdrop-blur lg:hidden">
+      <header className="glass-bar sticky top-0 z-30 flex items-center gap-3 border-b border-line px-4 py-3 lg:hidden">
         <button
           type="button"
-          className="grid size-11 place-items-center rounded-xl border border-line bg-surface text-navy-800"
+          className="grid size-11 place-items-center rounded-full border border-line bg-surface text-navy-800"
           aria-label={t('nav.openMenu')}
           aria-expanded={open}
           aria-controls="app-sidebar"
@@ -100,7 +100,7 @@ export function AppShell({ sectionName, nav, userName, userRole, today, children
           </button>
         </div>
 
-        <dl className="grid gap-2 rounded-2xl border border-line bg-navy-50 p-3 text-sm">
+        <dl className="grid gap-2 rounded-2xl border border-line bg-surface-muted p-3 text-sm">
           <div>
             <dt className="text-ink-subtle">{t('preview.user')}</dt>
             <dd className="font-bold">{userName}</dd>

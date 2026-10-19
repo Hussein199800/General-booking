@@ -25,7 +25,8 @@ function safeNext(value: string | null): string | null {
 export function LoginForm({ disabled }: { readonly disabled: boolean }) {
   const router = useRouter();
   const params = useSearchParams();
-  const [door, setDoor] = useState<Door>('STAFF');
+  // `?door=lawyer` (from the home page) opens the lawyers' door directly.
+  const [door, setDoor] = useState<Door>(params.get('door') === 'lawyer' ? 'LAWYER' : 'STAFF');
   const [needOtp, setNeedOtp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
