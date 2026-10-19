@@ -141,8 +141,7 @@ export function MonthCalendar({
                 {entries.slice(0, 4).map((entry) => (
                   <span
                     key={entry.id}
-                    className="size-1.5 rounded-full"
-                    style={{ background: accentOf(entry) }}
+                    className={`bg-accent size-1.5 rounded-full ${accentOf(entry)}`}
                   />
                 ))}
               </span>
@@ -150,8 +149,7 @@ export function MonthCalendar({
                 {entries.slice(0, 3).map((entry) => (
                   <span
                     key={entry.id}
-                    className="truncate rounded-md border-s-4 bg-canvas px-1.5 py-0.5 text-[0.7rem] leading-tight text-ink"
-                    style={{ borderInlineStartColor: accentOf(entry) }}
+                    className={`border-s-accent truncate rounded-md border-s-4 bg-canvas px-1.5 py-0.5 text-[0.7rem] leading-tight text-ink ${accentOf(entry)}`}
                   >
                     {formatTime(entry.startsAt)} · {displayName(entry)}
                   </span>

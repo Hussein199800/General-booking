@@ -53,15 +53,19 @@ export function displayName(appointment: Appt): string {
 }
 
 const ACCENT: Record<PriorityTier, string> = {
-  CRITICAL: 'var(--color-tier-critical)',
-  INTERNAL: 'var(--color-tier-internal)',
-  STANDARD: 'var(--color-tier-standard)',
+  CRITICAL: 'accent-critical',
+  INTERNAL: 'accent-internal',
+  STANDARD: 'accent-standard',
 };
 
-/** Left-edge colour: priority for audiences, gold for the Grand Syndic's own entries. */
+/**
+ * Accent class (sets `--accent`, see globals.css): priority for audiences,
+ * gold for the Grand Syndic's own entries. A class, not an inline style, so
+ * server-rendered HTML stays within the Content-Security-Policy.
+ */
 export function accentOf(appointment: Appt): string {
-  if (appointment.origin === 'PRINCIPAL') return 'var(--color-gold-500)';
-  return appointment.priority ? ACCENT[appointment.priority] : 'var(--color-navy-700)';
+  if (appointment.origin === 'PRINCIPAL') return 'accent-gold';
+  return appointment.priority ? ACCENT[appointment.priority] : 'accent-navy';
 }
 
 export function locationText(appointment: Appt): string {

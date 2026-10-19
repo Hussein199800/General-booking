@@ -121,15 +121,9 @@ export function SecretariatDashboard() {
           aria-label={t('secretariat.title')}
         >
           {PRIORITY_TIERS.map((tier) => (
-            <div
-              key={tier}
-              className="stat-card"
-              style={{ ['--stat-accent' as string]: PRIORITY_ACCENT[tier] }}
-            >
+            <div key={tier} className={`stat-card ${PRIORITY_ACCENT[tier]}`}>
               <p className="text-sm text-ink-muted">{t(STAT_LABEL[tier])}</p>
-              <p className="text-3xl font-bold" style={{ color: PRIORITY_ACCENT[tier] }}>
-                {show(counts.data?.open[tier])}
-              </p>
+              <p className="text-accent text-3xl font-bold">{show(counts.data?.open[tier])}</p>
             </div>
           ))}
           <div className="stat-card [--stat-accent:var(--color-gold-500)]">

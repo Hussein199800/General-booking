@@ -14,10 +14,11 @@ export const PRIORITY_BORDER: Record<PriorityTier, string> = {
   STANDARD: 'border-s-tier-standard',
 };
 
+/** Accent classes (set `--accent`, see globals.css). */
 export const PRIORITY_ACCENT: Record<PriorityTier, string> = {
-  CRITICAL: 'var(--color-tier-critical)',
-  INTERNAL: 'var(--color-tier-internal)',
-  STANDARD: 'var(--color-tier-standard)',
+  CRITICAL: 'accent-critical',
+  INTERNAL: 'accent-internal',
+  STANDARD: 'accent-standard',
 };
 
 export function PriorityBadge({ priority }: { priority: PriorityTier }) {

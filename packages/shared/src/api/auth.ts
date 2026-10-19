@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import './zod-config.js';
 
 /** Six-digit TOTP code. */
 export const otpSchema = z.string().regex(/^\d{6}$/);

@@ -32,7 +32,7 @@ export function LiveBoard({ appointments, now, onTrack }: LiveBoardProps) {
     {
       icon: DoorOpen,
       title: t('live.inOffice'),
-      accent: 'var(--color-tier-standard)',
+      accent: 'accent-standard',
       body: inOffice[0] ? displayName(inOffice[0]) : t('live.noneInOffice'),
       meta: inOffice[0]?.startedAt
         ? t('live.since', { time: formatTime(inOffice[0].startedAt) })
@@ -41,14 +41,14 @@ export function LiveBoard({ appointments, now, onTrack }: LiveBoardProps) {
     {
       icon: Hourglass,
       title: t('live.waiting'),
-      accent: 'var(--color-gold-500)',
+      accent: 'accent-gold',
       body: waiting.length ? waiting.map((x) => displayName(x)).join(' · ') : t('live.noneWaiting'),
       meta: '',
     },
     {
       icon: TimerReset,
       title: t('live.next'),
-      accent: 'var(--color-navy-700)',
+      accent: 'accent-navy',
       body: next ? displayName(next) : t('live.noNext'),
       meta: next ? t('live.at', { time: formatTime(next.startsAt) }) : '',
     },
@@ -70,11 +70,7 @@ export function LiveBoard({ appointments, now, onTrack }: LiveBoardProps) {
 
       <div className="grid gap-3 sm:grid-cols-3">
         {summary.map((card) => (
-          <div
-            key={card.title}
-            className="stat-card"
-            style={{ ['--stat-accent' as string]: card.accent }}
-          >
+          <div key={card.title} className={`stat-card ${card.accent}`}>
             <p className="flex items-center gap-1.5 text-sm text-ink-muted">
               <card.icon className="size-4" aria-hidden="true" />
               {card.title}
@@ -93,8 +89,7 @@ export function LiveBoard({ appointments, now, onTrack }: LiveBoardProps) {
             return (
               <li key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <span
-                  className="h-8 w-1 rounded-full"
-                  style={{ background: accentOf(item) }}
+                  className={`bg-accent h-8 w-1 rounded-full ${accentOf(item)}`}
                   aria-hidden="true"
                 />
                 <span className="w-16 shrink-0 whitespace-nowrap font-bold text-navy-800">

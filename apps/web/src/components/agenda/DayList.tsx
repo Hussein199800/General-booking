@@ -30,10 +30,9 @@ export function DayList({ appointments, highlightId, onOpenDocument, actions }: 
         return (
           <li
             key={item.id}
-            className={`card border-s-4 p-4 ${inactive ? 'opacity-70' : ''} ${
-              item.id === highlightId ? 'ring-2 ring-gold-500' : ''
-            }`}
-            style={{ borderInlineStartColor: accentOf(item) }}
+            className={`card border-s-accent border-s-4 p-4 ${accentOf(item)} ${
+              inactive ? 'opacity-70' : ''
+            } ${item.id === highlightId ? 'ring-2 ring-gold-500' : ''}`}
           >
             <div className="flex items-start gap-4">
               <div className="w-20 shrink-0 whitespace-nowrap text-center">

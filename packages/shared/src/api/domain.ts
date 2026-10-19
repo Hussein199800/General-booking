@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import './zod-config.js';
 
 import { GOVERNORATES } from '../domain/governorates.js';
 import { MEETING_MODES, PRIORITY_TIERS } from '../domain/scheduling.js';
